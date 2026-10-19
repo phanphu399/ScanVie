@@ -66,7 +66,7 @@ Grayscale/B&W/Đảo màu) → sharpen + denoise → lưu JPG (quality 85, EXIF 
 | UI | Jetpack Compose + Material 3 | Nhanh để viết, hiện đại, ít boilerplate |
 | Camera | **CameraX** (camera2, lifecycle, view 1.4+) | API ổn định, auto-capture tiện |
 | Detect & filter | **OpenCV Android SDK** (org.opencv:opencv) | Edge detection + perspective transform tốt nhất on-device, free Apache-2.0 |
-| OCR | **ML Kit Text Recognition v2** (`com.google.mlkit:text-recognition-latin`) | Hỗ trợ dấu tiếng Việt, on-device, miễn phí, nhẹ |
+| OCR (bundled — nằm trong APK, offline hoàn toàn), hỗ trợ tiếng Việt | **ML Kit Text Recognition v2** (`com.google.mlkit:text-recognition`) | Hỗ trợ dấu tiếng Việt, on-device, miễn phí, nhẹ. **Không** tồn tại artifact `text-recognition-latin` (kiểm tra 404 ngày 19/10/2026) |
 | PDF | `androidx.pdf` (PdfRenderer mới) + **pdfbox-android** (add text layer ẩn) | Xuất PDF có thể tìm kiếm được chữ VN |
 | Room / DataStore | androidx.room, preferences-datastore | Metadata docs, settings |
 | DI / Async | Hilt, Coroutines, Flow, WorkManager | Chuẩn Android |

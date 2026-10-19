@@ -10,13 +10,12 @@ import androidx.navigation.navArgument
 import vn.scanviet.app.ui.library.DocumentDetailScreen
 import vn.scanviet.app.ui.library.LibraryScreen
 import vn.scanviet.app.ui.library.TrashScreen
-import vn.scanviet.app.ui.scan.ScanPlaceholderScreen
+import vn.scanviet.app.ui.scan.ScanScreen
 import vn.scanviet.app.ui.settings.SettingsScreen
 
 /**
  * Nơi duy nhất biết về tất cả màn hình.
- * Các màn hình chỉ nhận callback (onOpenDocument, onScanClick, ...) nên không phụ thuộc lẫn nhau:
- * Giai đoạn 2/3 chỉ cần đổi [ScanVietRoutes.SCAN] sang màn hình quét thật.
+ * Các màn hình chỉ nhận callback (onOpenDocument, onScanClick, ...) nên không phụ thuộc lẫn nhau.
  */
 @Composable
 fun ScanVietNavHost(
@@ -38,7 +37,16 @@ fun ScanVietNavHost(
         }
 
         composable(ScanVietRoutes.SCAN) {
-            ScanPlaceholderScreen(onBack = { navController.popBackStack() })
+            ScanScreen(
+                onBack = { navController.popBackStack() },
+                onDocumentSaved = { documentId ->
+                    // Thay màn hình quét bằng màn hình chi tiết: sau khi lưu, bấm "Quay lại"
+                    // sẽ về danh sách tài liệu chứ không quay lại danh sách trang đã lưu.
+                    navController.navigate(ScanVietRoutes.documentDetail(documentId)) {
+                        popUpTo(ScanVietRoutes.SCAN) { inclusive = true }
+                    }
+                },
+            )
         }
 
         composable(ScanVietRoutes.TRASH) {

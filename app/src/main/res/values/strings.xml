@@ -67,15 +67,32 @@
     <string name="trash_delete_forever_message">“%1$s” cùng toàn bộ ảnh và PDF của tài liệu sẽ bị xoá khỏi máy. Không thể hoàn tác.</string>
     <string name="trash_restored">Đã khôi phục “%1$s”.</string>
 
-    <!-- Màn hình quét (Giai đoạn 1: chưa có chức năng quét) -->
+    <!-- Màn hình quét (Giai đoạn 2: ML Kit Document Scanner) -->
     <string name="scan_title">Quét tài liệu</string>
-    <string name="scan_coming_soon_title">Chức năng quét sẽ có ở Giai đoạn 2</string>
-    <string name="scan_coming_soon_message">Giai đoạn 2 sẽ tích hợp ML Kit Document Scanner: nhận diện mép giấy, cắt phối cảnh, chỉnh màu, chụp nhiều trang và xuất PDF ngay trên thiết bị.</string>
-    <string name="scan_ready_note">Giai đoạn 1 đã hoàn thành: lưu trữ cục bộ, quản lý tài liệu, tìm kiếm không dấu, thùng rác và cài đặt.</string>
+    <string name="scan_intro_title">Đưa tài liệu vào khung hình</string>
+    <string name="scan_intro_message">Ứng dụng tự nhận diện mép giấy, cắt phối cảnh và làm sạch nền. Bạn có thể quét nhiều trang liên tiếp, rồi sắp xếp lại trước khi lưu.</string>
+    <string name="scan_start">Bắt đầu quét</string>
+    <string name="scan_notes_section">Cần biết trước</string>
+    <string name="scan_note_pages">Tối đa %1$d trang cho một tài liệu.</string>
+    <string name="scan_note_offline">Lần quét đầu tiên cần mạng để tải công cụ quét. Sau đó dùng được khi không có mạng.</string>
+    <string name="scan_note_privacy">Ảnh được sao chép vào vùng riêng của ứng dụng và không tải lên máy chủ.</string>
+    <string name="scan_preparing">Đang chuẩn bị công cụ quét…</string>
+    <string name="scan_unavailable_title">Thiết bị này chưa quét được</string>
+    <string name="scan_unavailable_message">Máy cần có Google Play services và tối thiểu 1,7 GB RAM. Hãy cập nhật Play services rồi thử lại.</string>
+    <string name="scan_error_title">Không mở được công cụ quét</string>
+    <string name="scan_retry">Thử lại</string>
+    <string name="scan_title_label">Tên tài liệu</string>
+    <string name="scan_pages_count">%1$d trang đã quét</string>
+    <string name="scan_no_pages_title">Đã xoá hết trang</string>
+    <string name="scan_no_pages_message">Quay lại và quét lại để có ít nhất một trang.</string>
+    <string name="scan_saving">Đang lưu vào máy…</string>
+    <string name="scan_move_up">Chuyển trang lên</string>
+    <string name="scan_move_down">Chuyển trang xuống</string>
+    <string name="scan_remove_page">Xoá trang này</string>
 
     <!-- Công cụ thử nghiệm, chỉ tồn tại ở bản debug -->
     <string name="dev_section_title">Công cụ thử nghiệm (chỉ bản debug)</string>
-    <string name="dev_section_message">Tạo một tài liệu mẫu 2 trang để kiểm tra việc ghi file + Room trước khi có chức năng quét.</string>
+    <string name="dev_section_message">Tạo một tài liệu mẫu 2 trang để kiểm tra danh sách, tìm kiếm và thùng rác trên máy không chạy được trình quét.</string>
     <string name="dev_create_sample">Tạo tài liệu mẫu 2 trang</string>
     <string name="dev_create_sample_success">Đã tạo tài liệu mẫu.</string>
 
@@ -103,6 +120,7 @@
     <string name="error_storage">Không truy cập được bộ nhớ ứng dụng.</string>
     <string name="error_document_not_found">Tài liệu không còn tồn tại.</string>
     <string name="error_empty_document">Cần ít nhất một trang để tạo tài liệu.</string>
+    <string name="error_unreadable_scan_page">Không đọc được ảnh vừa quét. Hãy quét lại trang đó.</string>
 
     <!-- Nội dung mô tả cho trình đọc màn hình -->
     <string name="cd_open_settings">Mở cài đặt</string>

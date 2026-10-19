@@ -4,9 +4,9 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import vn.scanviet.app.core.time.TimeProvider
-import vn.scanviet.app.data.file.DocumentFileStorage
 import vn.scanviet.app.domain.DocumentRules
 import vn.scanviet.app.domain.repository.DocumentRepository
+import vn.scanviet.app.domain.storage.DocumentFileStorage
 
 /**
  * Kết quả dọn dẹp lúc mở ứng dụng.

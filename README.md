@@ -6,7 +6,7 @@
 
 ---
 
-## Trạng thái hiện tại: xong Giai đoạn 1 (nền tảng)
+## Trạng thái hiện tại: xong Giai đoạn 1 + Giai đoạn 2a (quét tài liệu)
 
 **Đã chạy được:**
 
@@ -18,10 +18,14 @@
 - Cài đặt: chủ đề Sáng/Tối/Theo hệ thống, công tắc OCR tự động, giữ ảnh gốc, xem dung lượng đang dùng.
 - Dọn dẹp lúc mở app: xoá tài liệu trong thùng rác quá 30 ngày, xoá thư mục mồ côi, chuyển tài liệu mất hết file ảnh vào thùng rác.
 - Chủ đề Sáng/Tối, giao diện tiếng Việt, Material 3.
+- **Quét tài liệu thật** (Giai đoạn 2a): mở giao diện quét của ML Kit Document Scanner (nhận diện mép giấy, cắt phối cảnh, chỉnh màu, nhiều trang), rồi xem lại danh sách trang — chuyển trang lên/xuống, xoá trang, đặt tên — và lưu. Ảnh được **sao chép ngay** vào `filesDir/documents/<uuid>/page_XXXX.jpg` trước khi ghi Room; nếu ghi Room lỗi thì thư mục vừa tạo bị xoá sạch.
+- Tối đa **20 trang** cho một lần quét. Huỷ giữa chừng hoặc máy không có Google Play services đều có thông báo riêng, không màn hình trắng.
 
-**Chưa có (đúng phạm vi, không phải lỗi):** chức năng quét thật, OCR, xuất PDF. Màn hình "Quét" hiện là màn hình tạm nói rõ tính năng đang được phát triển.
+**Chưa có (đúng phạm vi, không phải lỗi):** xuất/chia sẻ PDF (Giai đoạn 2b), OCR tiếng Việt (Giai đoạn 3), ảnh thu nhỏ trong danh sách.
 
-> Trong bản **debug** có một công cụ thử nghiệm ở màn hình Quét: nút tạo tài liệu 2 trang mẫu (ảnh JPEG tự sinh) để thử danh sách/đổi tên/xoá/thùng rác trên máy thật mà chưa cần camera. Công cụ này bị R8 loại khỏi bản release (`BuildConfig.DEBUG`).
+> ⚠️ **Chưa kiểm chứng trên thiết bị thật.** Toàn bộ luồng quét — giao diện của ML Kit, việc cấp quyền camera, việc tải công cụ quét ở lần đầu — **chưa từng chạy trên máy thật hay emulator** vì môi trường phát triển không có thiết bị. Phần kiểm thử được là phần **sau** khi trình quét trả kết quả (sao chép ảnh, ghi Room, dọn rác khi lỗi): đã có test tự động. Xem `MVP_SPEC.md` để biết việc gì còn phải kiểm tra bằng tay.
+
+> Trong bản **debug** có một công cụ thử nghiệm ở màn hình Quét: nút tạo tài liệu 2 trang mẫu (ảnh JPEG tự sinh) để thử danh sách/đổi tên/xoá/thùng rác trên máy **không có Google Play services** (khi đó không thể tạo tài liệu bằng cách quét). Công cụ này bị R8 loại khỏi bản release — đã kiểm chứng bằng cách tìm chuỗi trong file `.dex` của APK release (xem mục "Kiểm chứng R8" bên dưới).
 
 ---
 
@@ -58,9 +62,30 @@ sdk.dir=C\:\\Users\\<tên-bạn>\\AppData\\Local\\Android\\Sdk
 
 Trên Windows dùng `gradlew.bat`. APK debug nằm ở `app/build/outputs/apk/debug/`.
 
-**Kết quả đã chạy thật:** 75 unit test, 0 lỗi (`FormattersTest` 9, `VnTextNormalizerTest` 8, `LocalDocumentFileStorageTest` 12, `DocumentStorageMaintenanceTest` 7, `OfflineDocumentRepositoryTest` 16, `CreateDocumentUseCaseTest` 7, `RenameDocumentUseCaseTest` 3, `LibraryViewModelTest` 13).
+**Kết quả đã chạy thật:** **101 unit test, 0 lỗi** (`FormattersTest` 9, `VnTextNormalizerTest` 8, `LocalDocumentFileStorageTest` 12, `DocumentStorageMaintenanceTest` 7, `OfflineDocumentRepositoryTest` 16, `CreateDocumentUseCaseTest` 7, `RenameDocumentUseCaseTest` 3, `ImportScannedDocumentUseCaseTest` 9, `LibraryViewModelTest` 13, `ScanViewModelTest` 17).
 
 Test dùng **Robolectric** (Room in-memory + `filesDir` giả) nên chạy được trên máy không có emulator. Chưa có test instrumented — sẽ bổ sung khi có thiết bị/emulator.
+
+`ImportScannedDocumentUseCaseTest` và `ScanViewModelTest` là test **tích hợp có chủ đích**: dùng file thật trên `filesDir` giả của Robolectric, chỉ thay trình quét và repository. Nhờ vậy chúng trả lời được câu hỏi "bấm Lưu thì có thật sự sinh ra file + bản ghi đúng không" và "khi ghi database lỗi thì có còn file rác không". Cái **không** kiểm thử được là chính trình quét của ML Kit (nó là Activity của Play services) — xem cảnh báo ở đầu file.
+
+---
+
+## Kiểm chứng R8 (công cụ thử nghiệm không lọt vào bản release)
+
+Bản release bật `isMinifyEnabled` + `isShrinkResources`. Công cụ tạo tài liệu mẫu nằm trong nhánh `if (BuildConfig.DEBUG)`, nên R8 phải loại bỏ nó. Cách kiểm chứng: tìm **chuỗi ký tự** trong file `.dex` của APK (không tìm tên class — R8 đổi tên class nên tên class không còn ý nghĩa; ngược lại `mapping.txt` liệt kê cả class đã bị xoá nên cũng không dùng làm bằng chứng).
+
+Đã chạy ngày 19/10/2026 (`app-debug.apk` và `app-release-unsigned.apk`):
+
+| Chuỗi cần tìm | Bản debug | Bản release |
+|---|---|---|
+| `TÀI LIỆU MẪU SCANVIET` (tiêu đề trên ảnh mẫu) | có | **không** |
+| `Tài liệu mẫu ` (tiền tố tên tài liệu mẫu) | có | **không** |
+| `SampleDocumentFactory` | có | **không** |
+| `dev_create_sample` (tên resource) | có | **không** |
+| Đối chứng: `page_%04d.jpg`, `scan_scratch` | có | có |
+| Đối chứng: chuỗi không tồn tại | không | không |
+
+Hai dòng đối chứng chứng minh cách tìm này không cho kết quả dương tính giả, nên kết luận "release không còn công cụ thử nghiệm" là đáng tin. Kích thước APK: debug 12,32 MB, release 2,12 MB.
 
 ---
 
@@ -70,18 +95,49 @@ Một module `:app` duy nhất (theo `AGENTS.md`), nhưng ranh giới package đ
 
 ```
 app/src/main/java/vn/scanviet/app/
-├── core/         → :core:common   DispatcherProvider, VnTextNormalizer, Formatters, TimeProvider
-├── domain/       → :core:model    model, DocumentRules, DocumentRepository, use case, exception
-├── data/         → :core:data     Room (entity/dao/database), DataStore, FileStorage, repository impl
-├── ui/           → :feature:*     theme, components, library, scan, settings, root
-└── navigation/   → :app           ScanVietRoutes + ScanVietNavHost
+├── core/         → :core:common    DispatcherProvider, VnTextNormalizer, Formatters, TimeProvider
+├── domain/       → :core:domain    model, DocumentRules, use case, exception,
+│                                   :core:domain/repository   (DocumentRepository)
+│                                   :core:domain/storage      (DocumentFileStorage - cổng)
+│                                   :core:domain/scan         (PageImageReader - cổng)
+├── data/         → :core:data      Room (entity/dao/database), DataStore, repository impl,
+│                                   file/LocalDocumentFileStorage, scan/, dev/ (chỉ debug)
+├── platform/     → :platform:*     scanner/ (DocumentScannerEngine + ML Kit impl + DI)
+├── ui/           → :feature:*      theme, components, common, library, scan, settings
+└── navigation/   → :app            ScanVietRoutes + ScanVietNavHost
 ```
 
 Quy tắc phụ thuộc (kiểm tra được bằng mắt qua import):
 
-- `domain/` **không** import Compose, Room, hay `data/`.
-- `ui/` không truy cập `data/` trực tiếp — chỉ qua interface trong `domain/`.
+- `domain/` **không** import Compose, Room, Android UI, hay `data/`. Các cổng như `DocumentFileStorage`, `PageImageReader` nằm ở đây vì use case cần chúng mà không được biết Android.
+- `ui/` không truy cập `data/` trực tiếp — chỉ qua interface trong `domain/`. Riêng thứ thuộc Android SDK không thể diễn đạt bằng domain (`DocumentScannerEngine` cần `Activity`/`IntentSender`) thì nằm ở `platform/`; `ui/` chỉ chuyển tiếp `IntentSender`/`Intent`.
+- `platform/` biết SDK cụ thể (ML Kit) nhưng **không** chứa quy tắc nghiệp vụ.
 - `navigation/` là nơi **duy nhất** biết tất cả màn hình; các màn hình chỉ nhận callback.
+
+### Luồng quét (Giai đoạn 2a)
+
+```
+ScanScreen ──(bấm "Bắt đầu quét")──> ScanViewModel.onStartScan(activity)
+   ▲                                        │
+   │  StateFlow<IntentSender?>                ▼
+   │                              DocumentScannerEngine.createStartIntent()
+   │  (mở giao diện quét của ML Kit)          │  (ML Kit Document Scanner, Play services)
+   │                                        ▼
+   └──(ActivityResult: Intent?)──> ScanViewModel.onScanResult(intent)
+                                            │  parseResult -> ScannedDocument(pageUris)
+                                            ▼
+                                  ScanUiState.Reviewing  (xem lại, sắp xếp, xoá, đặt tên)
+                                            │  (bấm "Lưu")
+                                            ▼
+                            ImportScannedDocumentUseCase
+                              1. kiểm tra tên + số trang (chưa ghi gì)
+                              2. tạo filesDir/documents/<uuid>/
+                              3. từng URI: PageImageReader.read -> writePageImage
+                              4. CreateDocumentUseCase (ghi Room)
+                              5. lỗi ở bất kỳ bước nào -> xoá thư mục vừa tạo
+```
+
+Điểm cốt lõi: URI do trình quét trả về là **file tạm trong vùng của Play services**, có thể biến mất bất cứ lúc nào — nên phải sao chép **ngay** vào vùng riêng của app rồi mới làm gì khác.
 
 ### Lưu trữ
 
@@ -92,7 +148,22 @@ Quy tắc phụ thuộc (kiểm tra được bằng mắt qua import):
 | Cài đặt | DataStore Preferences | chủ đề, OCR tự động, giữ ảnh gốc |
 | Vùng nháp khi scan | `cacheDir/scan_scratch/` | dọn sạch khi mở app |
 
-Không xin quyền bộ nhớ ngoài. Xuất/chia sẻ sẽ dùng SAF + share sheet (Giai đoạn 2).
+Không xin quyền bộ nhớ ngoài và **không** xin `CAMERA`. Xuất/chia sẻ dùng SAF + share sheet (Giai đoạn 2b).
+
+### Quyền thực tế trong APK (đã kiểm chứng)
+
+Ứng dụng không tự khai báo quyền nào, nhưng thư viện hợp nhất thêm vào:
+
+| Quyền | Nguồn | Ghi chú |
+|---|---|---|
+| `android.permission.INTERNET` | `com.google.android.datatransport:transport-backend-cct` (phụ thuộc bắc cầu của ML Kit) | Kênh truyền số liệu của Google; cũng là thứ cho phép lần quét đầu tải công cụ quét |
+| `android.permission.ACCESS_NETWORK_STATE` | cùng nguồn | |
+| `vn.scanviet.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | AndroidX | Quyền nội bộ, `protectionLevel=signature` |
+
+`CAMERA` **không** cần: giao diện quét nằm trong tiến trình của Google Play services (activity `com.google.mlkit.vision.documentscanner.internal.GmsDocumentScanningDelegateActivity`, do SDK khai báo, `exported=false`) — chính Play services xin quyền camera. Đã kiểm chứng bằng cách đọc `AndroidManifest.xml` trong `play-services-mlkit-document-scanner-16.0.0.aar`: AAR đó không khai báo quyền nào.
+
+Nguồn của từng quyền tra được ở `app/build/outputs/logs/manifest-merger-debug-report.txt`.
+Không có mã nào trong `vn.scanviet.app` gọi HTTP; ảnh/PDF/văn bản OCR không được gửi đi đâu.
 
 ---
 
@@ -111,8 +182,9 @@ Không xin quyền bộ nhớ ngoài. Xuất/chia sẻ sẽ dùng SAF + share sh
 | Giai đoạn | Nội dung |
 |---|---|
 | 1 ✅ | Nền tảng: Compose + Nav + ViewModel + Room + DataStore, quản lý tài liệu, thùng rác, tìm kiếm không dấu |
-| 2 | Quét thật bằng ML Kit Document Scanner (nhiều trang), copy kết quả vào app storage, xuất/chia sẻ PDF |
-| 3 | OCR tiếng Việt on-device (`text-recognition-latin` bundled), sửa/copy/chia sẻ văn bản |
+| 2a ✅ | Quét thật bằng ML Kit Document Scanner (nhiều trang), xem lại/sắp xếp/xoá trang, copy ảnh vào app storage, dọn rác khi lỗi |
+| 2b ⬜ | Xuất PDF nhiều trang + chia sẻ/lưu bản sao qua SAF |
+| 3 | OCR tiếng Việt on-device (`com.google.mlkit:text-recognition` bundled), sửa/copy/chia sẻ văn bản |
 | 4 | Trải nghiệm & hiệu năng (ảnh thu nhỏ, xuất PDF nhanh hơn, nâng cấp schema lần đầu) |
 | 5 | Phát hành: icon, screenshots, privacy policy, Data Safety, closed testing ≥14 ngày |
 

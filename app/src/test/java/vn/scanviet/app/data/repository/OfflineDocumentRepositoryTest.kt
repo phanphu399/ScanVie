@@ -17,13 +17,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import vn.scanviet.app.data.file.DocumentFileStorage
 import vn.scanviet.app.data.file.LocalDocumentFileStorage
 import vn.scanviet.app.data.local.ScanVietDatabase
 import vn.scanviet.app.domain.DocumentNotFoundException
 import vn.scanviet.app.domain.model.NewDocumentPage
 import vn.scanviet.app.domain.model.OcrStatus
 import vn.scanviet.app.domain.repository.DocumentRepository
+import vn.scanviet.app.domain.storage.DocumentFileStorage
 import vn.scanviet.app.testing.FakeTimeProvider
 import vn.scanviet.app.testing.TestDispatcherProvider
 

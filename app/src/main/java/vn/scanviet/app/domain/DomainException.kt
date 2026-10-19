@@ -13,3 +13,11 @@ class DocumentNotFoundException(val documentId: String) : DomainException()
 class InvalidDocumentTitleException(val error: TitleValidationError) : DomainException()
 
 class EmptyDocumentException : DomainException()
+
+/**
+ * Trình quét trả về một trang nhưng không đọc được nội dung ảnh.
+ *
+ * Quy tắc riêng tư: lỗi này CỐ Ý không mang theo URI, vì URI của trình quét là đường dẫn
+ * (có thể chứa tên tệp) và không được rơi vào log hay thông báo lỗi.
+ */
+class UnreadableScanPageException : DomainException()

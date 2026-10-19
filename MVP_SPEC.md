@@ -47,7 +47,7 @@
 | Thành phần | Cách hoạt động | Cần mạng? |
 |---|---|---|
 | ML Kit Document Scanner | UI + model tải qua **Google Play services**; lần đầu có thể cần mạng | Lần đầu |
-| OCR (Text Recognition v2) | Dùng artifact **bundled** `com.google.mlkit:text-recognition-latin` — mô hình nằm trong APK | **Không** (kể cả lần đầu) |
+| OCR (Text Recognition v2) | Dùng artifact **bundled** `com.google.mlkit:text-recognition` — mô hình nằm trong APK | **Không** (kể cả lần đầu) |
 | Lưu/đọc tài liệu | Room + file nội bộ app | Không |
 | Quảng cáo (sau này) | AdMob | Cần mạng — nhưng scan/OCR/xuất vẫn chạy bình thường khi offline |
 
@@ -58,7 +58,8 @@
 1. **Dùng luôn UI có sẵn của ML Kit Document Scanner** cho màn hình 2 (nó đã có cắt mép, xoay, filter, nhiều trang, sắp xếp trang). Bù lại: giao diện ít tùy chỉnh được và chỉ chạy được trên máy có Google Play services. Custom crop screen bằng Compose + OpenCV chỉ làm **sau** MVP nếu cần thương hiệu hóa.
 2. **Kết quả scanner là URI tạm thời** (lưu trong MediaStore tạm, chỉ app mình truy cập được và có thể hết hạn). Sau khi scan xong phải **copy ngay vào `filesDir` của app**, rồi mới ghi dòng Room. Không bao giờ giữ URI của scanner làm nguồn sự thật.
 3. **Nguồn sự thật của file = thư mục nội bộ app** (`filesDir/`); Room chỉ lưu metadata + đường dẫn. Storage Access Framework chỉ dùng cho nút **"Lưu bản sao ra…"** (export) và Share sheet. Nhờ vậy **không cần xin quyền bộ nhớ ngoài**.
-4. **OCR chạy bằng artifact bundled** (`com.google.mlkit:text-recognition-latin`) thay vì artifact qua Play services — đảm bảo OCR chạy offline ngay lần mở đầu.
+4. **OCR chạy bằng artifact bundled** (`com.google.mlkit:text-recognition`) thay vì artifact qua Play services (`com.google.android.gms:play-services-mlkit-text-recognition`) — đảm bảo OCR chạy offline ngay lần mở đầu.
+   > ⚠️ Đính chính (kiểm tra ngày 19/10/2026): tài liệu trước đây ghi `com.google.mlkit:text-recognition-latin`. **Artifact đó không tồn tại** (Google Maven trả 404). Bản bundled cho chữ Latin — gồm tiếng Việt có dấu — là `com.google.mlkit:text-recognition`, bản stable mới nhất `16.0.1`.
 5. **AdMob = 100% nằm ngoài MVP.** Thêm quảng cáo sau khi có verdict closed testing, vì AdMob cần privacy policy + duyệt, và banner/interstitial tuyệt đối **không** đặt trong luồng chụp.
 6. **Min SDK 23, target SDK = mức Play yêu cầu tại thời điểm nộp.**
 7. **Một module `:app` ở Giai đoạn 1** (đã chốt lại theo `AGENTS.md` §2), ranh giới package trùng tên module tương lai; tách `:core:*`, `:platform:*`, `:feature:*` theo từng giai đoạn sau. Không dựng sẵn 13 module ngày đầu, không tạo `build-logic` khi chưa có ≥4 module, nhưng **không** để logic nằm lẫn trong UI hay `MainActivity`. Chi tiết: `ARCHITECTURE.md` mục 8.
@@ -90,10 +91,13 @@ kapt/implementation("androidx.room:room-compiler:<latest>") // hoặc ksp
 implementation("androidx.datastore:datastore-preferences:<latest>")
 
 // Scan (qua Google Play services, lần đầu có thể tải resource)
-implementation("com.google.android.gms:play-services-mlkit-document-scanner:<latest>")
+// Đã kiểm chứng trên Google Maven: 16.0.0 là bản stable (29/09/2025), không còn -beta.
+implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
 
 // OCR (bundled — nằm trong APK, offline hoàn toàn)
-implementation("com.google.mlkit:text-recognition-latin:<latest>")
+// LƯU Ý: KHÔNG có artifact tên "text-recognition-latin" (đã kiểm tra 404).
+// "text-recognition" chính là mô hình Latin, hỗ trợ tiếng Việt có dấu. Bản stable: 16.0.1.
+implementation("com.google.mlkit:text-recognition:16.0.1")
 
 // Chạy nền (OCR nhiều trang)
 implementation("androidx.work:work-runtime-ktx:<latest>")
@@ -103,22 +107,36 @@ implementation("androidx.work:work-runtime-ktx:<latest>")
 
 ## 3. Cấu trúc project
 
-### 3.1. Trạng thái đã code (Giai đoạn 1) — MỘT module `:app`
+### 3.1. Trạng thái đã code (Giai đoạn 1 + 2a) — MỘT module `:app`
 
-Giai đoạn 1 **không** chia module. Toàn bộ nằm trong `:app` với ranh giới package trùng tên module tương lai (chi tiết + lý do: `ARCHITECTURE.md` mục 8):
+Chưa chia module. Toàn bộ nằm trong `:app` với ranh giới package trùng tên module tương lai (chi tiết + lý do: `ARCHITECTURE.md` mục 8):
 
 ```
 app/src/main/java/vn/scanviet/app/
 ├── ScanVietApplication.kt      @HiltAndroidApp + dọn dẹp lúc mở app
 ├── MainActivity.kt             entry duy nhất, chỉ setContent
 ├── core/                       → :core:common   (DispatcherProvider, text, format, time, di)
-├── domain/                     → :core:model    (model, DocumentRules, repository interface, use case)
-├── data/                       → :core:data     (Room, DataStore, FileStorage, repository impl, di)
+├── domain/                     → :core:domain
+│   ├── model/, DocumentRules, exception
+│   ├── repository/             DocumentRepository (cổng)
+│   ├── storage/                DocumentFileStorage (cổng — Giai đoạn 2a chuyển từ data/)
+│   ├── scan/                   PageImageReader + ScannedImage (cổng — Giai đoạn 2a)
+│   └── usecase/                CreateDocument, RenameDocument, ImportScannedDocument
+├── data/                       → :core:data
+│   ├── local/                  Room (entity, dao, database, converter)
+│   ├── file/                   LocalDocumentFileStorage (cài đặt cổng storage)
+│   ├── scan/                   ContentUriPageImageReader (cài đặt cổng scan)
+│   ├── settings/, repository/, maintenance/, di/
+│   └── dev/                    SampleDocumentFactory — CHỈ bản debug, R8 loại ở release
+├── platform/                   → :platform:*
+│   └── scanner/                DocumentScannerEngine (cổng Android) + MlKitDocumentScannerEngine + di/
 ├── ui/                         → :feature:*     (theme, common, components, library, scan, settings, root)
 └── navigation/                 → :app           (nơi DUY NHẤT biết mọi màn hình)
 ```
 
-Kiểm tra được bằng mắt: `domain/` không có import nào của `androidx.compose.*`, `androidx.room.*` hay `vn.scanviet.app.data.*`.
+Kiểm tra được bằng mắt: `domain/` không có import nào của `androidx.compose.*`, `androidx.room.*`, `android.*` hay `vn.scanviet.app.data.*`.
+
+Hai cổng dùng kiểu Android (`DocumentFileStorage` dùng `java.io.File`; `PageImageReader` dùng `String` URI) là chủ ý: chúng vẫn là hợp đồng thuần Kotlin/JVM nên use case kiểm thử được bằng cài đặt giả. Thứ **không thể** diễn đạt bằng domain — `DocumentScannerEngine` cần `Activity` và `IntentSender` — được đẩy ra `platform/scanner/` để domain sạch.
 
 ### 3.2. Thiết kế đích (khi tách module)
 
@@ -172,6 +190,18 @@ từng file, nêu rõ đường dẫn, dependency cần thêm, cách kiểm th�
 
 ## 6. Kiểm thử
 
+### 6.1. Đã có test tự động (101 test, 0 lỗi — chạy `./gradlew testDebugUnitTest`)
+
+| Nhóm | Test | Nội dung |
+|---|---|---|
+| Lưu trữ file | `LocalDocumentFileStorageTest` (12) | đường dẫn tương đối, ghi `.tmp` rồi đổi tên, chặn thoát khỏi vùng app, xoá thư mục |
+| Luồng quét — nhập ảnh | `ImportScannedDocumentUseCaseTest` (9) | 2 trang → đủ 2 file + 2 bản ghi; giữ đúng thứ tự; nội dung file khớp bytes; **lỗi ghi Room → xoá sạch thư mục**; 1 trang đọc lỗi → lỗi riêng + dọn file; lỗi đọc ảnh **không mang theo URI**; từ chối tên rỗng/quá dài **trước khi** ghi file |
+| Luồng quét — màn hình | `ScanViewModelTest` (17) | chuẩn bị quét → phát `IntentSender`; xoá yêu cầu sau khi dùng (xoay màn hình không mở lại); máy không hỗ trợ → thông báo riêng; huỷ → về trạng thái chờ; nhận kết quả → danh sách trang + tên mặc định; chuyển trang lên/xuống, bỏ qua chỉ số ngoài danh sách; xoá trang; xoá hết trang → không cho lưu; lưu thành công → file thật + bản ghi + `Saved`; lưu lỗi → giữ nguyên trang, có thông báo |
+
+**Điều test tự động KHÔNG chứng minh được:** chính trình quét của ML Kit (nó là Activity của Play services), việc cấp quyền camera, việc tải công cụ quét lần đầu, và mọi thứ về bố cục/giao diện. Xem 6.3.
+
+### 6.2. Dữ liệu thật cho OCR (Giai đoạn 3)
+
 OCR là tính năng tạo khác biệt → chuẩn bị **bộ dữ liệu thật ngay từ đầu**.
 
 | Nhóm tài liệu | Kiểm tra |
@@ -185,6 +215,19 @@ OCR là tính năng tạo khác biệt → chuẩn bị **bộ dữ liệu thậ
 | File lớn | Bộ nhớ, thời gian xử lý, nguy cơ crash |
 
 **Tiêu chí dừng (exit criteria) cho Giai đoạn 3:** trên ≥20 ảnh tài liệu in tiếng Việt thật, ≥90% dòng chữ đọc đúng nguyên vẹn; ảnh mờ/chữ viết tay chỉ cần ghi nhận "kết quả kém" chứ không crash.
+
+### 6.3. Việc PHẢI kiểm tra bằng tay trên máy thật (chưa làm được ở môi trường hiện tại)
+
+Không có thiết bị/emulator trong môi trường phát triển, nên các mục sau **chưa từng chạy**:
+
+1. Quét 1 trang, 5 trang, 20 trang → lưu → mở lại thấy đủ trang, không thiếu trang.
+2. Huỷ giữa lúc quét → quay về màn hình quét, **không** có tài liệu rác.
+3. Quay màn hình trong lúc đang quét → trình quét **không** tự bật lại.
+4. Máy không có Google Play services / Play services cũ → hiện thông báo "Thiết bị này chưa quét được".
+5. Lần quét đầu tiên ở chế độ máy bay → xác nhận việc tải công cụ quét cần mạng (đây là cơ sở cho câu marketing).
+6. Sau khi tải xong, **bật máy bay** rồi quét lại → phải chạy được.
+7. Đóng app giữa lúc đang lưu (bấm Lưu rồi tắt app) → mở lại: không có tài liệu nửa vời, không có thư mục rác.
+8. Giao diện: tiếng Việt dài có bị cắt không, chế độ tối, màn hình nhỏ.
 
 Quy trình mỗi lần test: chạy offline hoàn toàn (máy chế độ máy bay) → xác nhận scan/OCR/xuất PDF vẫn chạy → ghi scorecard thủ công theo nhóm tài liệu. Sau này thêm mini-harness: thả ảnh fixture vào `androidTest/assets`, so khớp text kỳ vọng.
 

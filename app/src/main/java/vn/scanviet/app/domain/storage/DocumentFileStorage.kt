@@ -1,9 +1,13 @@
-package vn.scanviet.app.data.file
+package vn.scanviet.app.domain.storage
 
 import java.io.File
 
 /**
- * Quản lý file tài liệu trong vùng riêng của ứng dụng.
+ * Cổng (port) quản lý file tài liệu trong vùng riêng của ứng dụng.
+ *
+ * Vì sao nằm ở domain: use case tạo/nhập tài liệu phải GHI ẢNH TRƯỚC rồi mới ghi Room,
+ * nên nó cần một hợp đồng không phụ thuộc Android. Cài đặt thật
+ * (`data/file/LocalDocumentFileStorage`) mới là nơi biết `Context`/`filesDir`.
  *
  * Toàn bộ API dùng ĐƯỜNG DẪN TƯƠNG ĐỐI (ví dụ "documents/<uuid>/page_0001.jpg").
  * Lý do: đường dẫn tuyệt đối sẽ sai khi khôi phục dữ liệu sang thiết bị khác.

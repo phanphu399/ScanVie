@@ -12,10 +12,10 @@ import kotlinx.coroutines.withContext
 import vn.scanviet.app.core.DispatcherProvider
 import vn.scanviet.app.core.format.Formatters
 import vn.scanviet.app.core.time.TimeProvider
-import vn.scanviet.app.data.file.DocumentFileStorage
 import vn.scanviet.app.domain.DocumentId
 import vn.scanviet.app.domain.model.Document
 import vn.scanviet.app.domain.model.NewDocumentPage
+import vn.scanviet.app.domain.storage.DocumentFileStorage
 import vn.scanviet.app.domain.usecase.CreateDocumentUseCase
 
 /**

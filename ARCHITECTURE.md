@@ -21,24 +21,35 @@
 
 ---
 
-## 2. Cây thư mục thực tế trên máy
+## 2. Cây thư mục thực tế trên máy (Giai đoạn 1 + 2a)
 
 ```
 filesDir/
-├── documents/
-│   └── <docUuid>/
-│       ├── page_0001.jpg      (ảnh đã crop/filter, JPEG q85, đã strip EXIF)
-│       ├── page_0002.jpg
-│       └── doc.pdf            (sinh ra khi người dùng yêu cầu/đã export)
-└── thumbs/
-    └── <docUuid>.jpg          (thumbnail 200px cho danh sách)
+└── documents/
+    └── <docUuid>/
+        ├── page_0001.jpg      (ảnh JPEG do trình quét trả về; không strip EXIF ở v1)
+        └── page_0002.jpg
 
 cacheDir/
-└── scan_tmp/                  (URI tạm từ Document Scanner → copy vào đây → xử lý
-                                → move sang filesDir/documents/. Dọn sạch lúc mở app.)
+└── scan_scratch/              (vùng cho file tạm. Hiện luồng quét KHÔNG dùng nó:
+                                ảnh được đọc trực tiếp từ URI của trình quét và ghi
+                                thẳng vào documents/<uuid>/page_XXXX.jpg. Sẽ dùng cho
+                                bản PDF tạm khi chia sẻ — Giai đoạn 2b.)
 ```
 
-Quy tắc: sau khi scan xong **copy ngay** kết quả vào `filesDir` (URI của ML Kit Document Scanner có thể hết hiệu lực), rồi mới ghi Room trong cùng một luồng: move file → insert DB → nếu insert lỗi thì xóa file vừa move.
+**Chưa có** (đúng phạm vi, không phải thiếu sót): `thumbs/` (không dùng thư viện tải ảnh), bản sao PDF cố định trong app (xuất PDF là *lưu bản sao* ra nơi người dùng chọn bằng SAF, không lưu thêm một bản vào app để không gấp đôi dung lượng), và `doc.pdf` trong thư mục tài liệu.
+
+Quy tắc bất di bất dịch của luồng ghi dữ liệu — gọi là **"ghi file trước, ghi Room sau, lỗi thì dọn"**:
+
+1. **Trước khi ghi bất cứ thứ gì**: kiểm tra tên và số trang. (Nếu không, bạn tạo rác rồi mới phải dọn.)
+2. Tạo `filesDir/documents/<uuid>/`.
+3. Với mỗi trang: đọc ảnh từ URI của trình quét → ghi `page_XXXX.jpg` (ghi `.tmp` rồi đổi tên để không bao giờ có file dở dang).
+4. Khi **mọi** ảnh đã ghi xong → ghi bản ghi vào Room.
+5. Bất kỳ bước nào lỗi → **xoá sạch** thư mục vừa tạo rồi mới ném lỗi ra ngoài.
+
+Vì sao bước sao chép là bắt buộc: URI do ML Kit Document Scanner trả về là **file tạm trong vùng của Play services**, không thuộc ứng dụng; chúng có thể biến mất bất cứ lúc nào. Vì vậy "dòng" bản gốc vào vùng riêng của app là điều kiện để app không mất trang khi trình quét dọn cache.
+
+Vì sao chỉ giữ một ảnh tại một thời điểm trong RAM: `ContentUriPageImageReader` đọc trọn một trang (~1–3 MB) rồi ghi đi, nên 20 trang không làm tăng mức dùng bộ nhớ.
 
 ---
 
@@ -110,10 +121,14 @@ backupLastAt     = Long?
 
 ## 5. Xuất / chia sẻ file (SAF)
 
+> **Trạng thái: chưa code (Giai đoạn 2b).** Giai đoạn 2a chỉ xong phần quét + lưu vào vùng riêng của app.
+
 - **Xuất PDF ra chỗ người dùng chọn:** `ActivityResultContracts.CreateDocument("application/pdf")` → ghi bản sao. File đã xuất nằm ngoài vùng app nên **không** bị xoá khi gỡ app (đúng như bảng của bạn).
 - **Chia sẻ nhanh:** `FileProvider` + `ACTION_SEND` (`content://` URI) — chỉ chia sẻ bản copy/single-doc, không expose toàn bộ thư mục.
 - **Thư mục mặc định (tuỳ chọn):** `OpenDocumentTree` + `takePersistableUriPermission` để lần sau export 1 chạm.
 - Không xin `READ/WRITE_EXTERNAL_STORAGE` ở bất kỳ đâu → ít rủi ro bị Play soi quyền.
+
+Vị trí hợp đồng xuất PDF (quan trọng cho quy tắc phụ thuộc): hợp đồng **thuần Kotlin** — nhận `List<File>` ảnh trang và `OutputStream` đầu ra — nên nằm ở `domain/export/`; cài đặt thật dùng `android.graphics.pdf.PdfDocument` nằm ở `platform/pdf/`. Nhờ vậy use case xuất PDF kiểm thử được trong JVM thuần, và việc đổi sang thư viện PDF khác (nếu `PdfDocument` không đủ) chỉ sửa `platform/pdf/`.
 
 ---
 
@@ -217,6 +232,22 @@ Mặc định Android **tự động backup dữ liệu app lên Google Drive c�
 
 `preview/` nằm trong `:feature:scan` (cùng một luồng, cùng state) — tách ra chỉ tổ phải bắc cầu state qua navigation.
 `:platform:ads` tạo muộn, khi thêm quảng cáo.
+
+### Quy tắc đặt "cổng" (interface) — đã áp dụng ngay từ Giai đoạn 2a
+
+Không phải cổng nào cũng được đặt ở chỗ giống nhau. Tiêu chí: **cổng có diễn đạt được bằng loại Java thuần hay không.**
+
+| Cổng | Đặt ở | Vì sao |
+|---|---|---|
+| `DocumentRepository` | `domain/repository/` | thuần Kotlin, không cần Android |
+| `DocumentFileStorage` | `domain/storage/` | chỉ dùng `java.io.File`; use case ghi trang cần nó mà không được biết `Context` |
+| `PageImageReader` | `domain/scan/` | nhận `String` (URI dạng chuỗi); cài đặt thật (`ContentResolver`) nằm ở `data/scan/` |
+| `PdfExporter` (Giai đoạn 2b) | `domain/export/` | nhận `List<File>` + `OutputStream`; `PdfDocument` thật nằm ở `platform/pdf/` |
+| `DocumentScannerEngine` | `platform/scanner/` | **bắt buộc** phải nhận `Activity`/`IntentSender` — đó là Activity của Play services, không thể diễn đạt bằng domain |
+
+Hệ quả: `domain/` không import `android.*` (chỉ `java.io`/`java.util`); `ui/` không import `data/` — trừ khi đi qua cổng trong `domain/`. Thứ Android không diễn đạt được thì đẩy ra `platform/` và để `ui/` làm công việc chuyển tiếp `IntentSender`/`Intent`.
+
+Gói `platform/scanner/` **đã được tạo trong `:app`** ở Giai đoạn 2a — tức là bước "tạo `:platform:scanner`" ở bảng lộ trình dưới đây đã đi trước một nửa: phần interface + DI + cài đặt ML Kit đã xong, việc tách Gradle module sau này chỉ còn là move package + thêm `build.gradle.kts`.
 
 ### Giữ multi-module không biến thành gánh nặng
 

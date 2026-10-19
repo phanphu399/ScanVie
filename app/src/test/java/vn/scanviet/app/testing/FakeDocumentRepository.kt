@@ -23,6 +23,9 @@ class FakeDocumentRepository : DocumentRepository {
     /** Bật lên để mô phỏng lỗi đọc dữ liệu. */
     var failObserve: Boolean = false
 
+    /** Bật lên để mô phỏng lỗi ghi database (dùng để kiểm tra việc dọn file rác). */
+    var failCreate: Boolean = false
+
     var lastCreatedTitle: String? = null
         private set
 
@@ -83,6 +86,7 @@ class FakeDocumentRepository : DocumentRepository {
         title: String,
         pages: List<NewDocumentPage>,
     ): Document {
+        if (failCreate) throw IllegalStateException("lỗi ghi database")
         lastCreatedTitle = title
         lastCreatedDocumentId = documentId
         val document = Document(

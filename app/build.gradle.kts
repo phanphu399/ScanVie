@@ -96,6 +96,11 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.android)
 
+    // Giai đoạn 2: giao diện quét và xử lý ảnh (nhận diện mép giấy, cắt phối cảnh,
+    // chỉnh màu, nhiều trang). Việc sao chép ảnh vào vùng riêng của app do tầng data lo,
+    // không do SDK này lo.
+    implementation(libs.mlkit.document.scanner)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)

@@ -9,7 +9,7 @@ import kotlinx.coroutines.withContext
 import vn.scanviet.app.core.DispatcherProvider
 import vn.scanviet.app.core.text.VnTextNormalizer
 import vn.scanviet.app.core.time.TimeProvider
-import vn.scanviet.app.data.file.DocumentFileStorage
+import vn.scanviet.app.domain.storage.DocumentFileStorage
 import vn.scanviet.app.data.local.ScanVietDatabase
 import vn.scanviet.app.data.local.dao.DocumentDao
 import vn.scanviet.app.data.local.entity.DocumentEntity

@@ -16,6 +16,9 @@ junit4 = "4.13.2"
 robolectric = "4.14.1"
 turbine = "1.2.0"
 androidxTestCore = "1.6.1"
+# ML Kit Document Scanner: giao diện quét + xử lý ảnh do Play services cung cấp.
+# Đã ở bản stable kể từ 16.0.0 (29/09/2025).
+mlkitDocumentScanner = "16.0.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -40,6 +43,10 @@ androidx-datastore-preferences = { module = "androidx.datastore:datastore-prefer
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }
 hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+
+# Trình quét tài liệu của ML Kit. KHÔNG kèm model OCR; model quét do Play services
+# tải ở lần dùng đầu tiên (đây là lý do tuyên bố "hoạt động ngoại tuyến" phải nói rõ).
+mlkit-document-scanner = { module = "com.google.android.gms:play-services-mlkit-document-scanner", version.ref = "mlkitDocumentScanner" }
 
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }

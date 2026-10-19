@@ -9,6 +9,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.withContext
 import vn.scanviet.app.core.DispatcherProvider
+import vn.scanviet.app.domain.storage.DocumentFileStorage
 
 /**
  * Cài đặt thật: file nằm trong filesDir/documents/<documentId>/page_XXXX.jpg

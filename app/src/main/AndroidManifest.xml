@@ -3,10 +3,25 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-      Giai đoạn 1 KHÔNG xin quyền nào:
-      - Tài liệu nằm trong vùng riêng của app (filesDir), không cần quyền bộ nhớ.
-      - Xuất/chia sẻ file sẽ dùng Storage Access Framework (Giai đoạn 2).
-      Giai đoạn 2 sẽ thêm android.permission.CAMERA khi tích hợp CameraX / ML Kit Document Scanner.
+      QUYỀN CỦA ỨNG DỤNG — trạng thái thật sau khi hợp nhất manifest (Giai đoạn 2).
+
+      Ứng dụng KHÔNG tự khai báo quyền nào. Cụ thể:
+      - Tài liệu nằm trong vùng riêng của app (filesDir) nên không cần quyền bộ nhớ.
+      - KHÔNG cần android.permission.CAMERA: giao diện quét nằm trong tiến trình của
+        Google Play services (`com.google.mlkit.vision.documentscanner.internal.GmsDocumentScanningDelegateActivity`,
+        do SDK khai báo, exported=false). Chính Play services xin quyền camera, không phải
+        ứng dụng này. Đã kiểm chứng bằng cách đọc AndroidManifest.xml trong
+        play-services-mlkit-document-scanner-16.0.0.aar: AAR đó không khai báo quyền nào.
+      - Xuất/chia sẻ file dùng Storage Access Framework nên cũng không cần quyền bộ nhớ.
+
+      Quyền ĐI KÈM do thư viện thêm vào, cần biết để khai báo trên Play Console:
+      - android.permission.INTERNET và android.permission.ACCESS_NETWORK_STATE
+        thêm bởi `com.google.android.datatransport:transport-backend-cct` (phụ thuộc bắc cầu
+        của ML Kit). Đây là kênh truyền số liệu của Google.
+        Ứng dụng KHÔNG gửi ảnh, PDF hay văn bản OCR lên máy chủ nào; không có mã nào trong
+        `vn.scanviet.app` gọi HTTP. INTERNET cũng là thứ cho phép lần quét đầu tiên tải
+        công cụ quét về máy (sau đó dùng được ngoại tuyến).
+        => Kiểm chứng bằng app/build/outputs/logs/manifest-merger-*-report.txt.
     -->
 
     <application

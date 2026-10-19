@@ -3,11 +3,12 @@ package vn.scanviet.app.ui.common
 import androidx.annotation.StringRes
 import java.io.IOException
 import vn.scanviet.app.R
-import vn.scanviet.app.domain.DocumentRules
 import vn.scanviet.app.domain.DocumentNotFoundException
+import vn.scanviet.app.domain.DocumentRules
 import vn.scanviet.app.domain.EmptyDocumentException
 import vn.scanviet.app.domain.InvalidDocumentTitleException
 import vn.scanviet.app.domain.TitleValidationError
+import vn.scanviet.app.domain.UnreadableScanPageException
 
 /**
  * Lỗi ở dạng mà tầng UI hiểu được.
@@ -18,6 +19,7 @@ enum class UiError {
     STORAGE,
     DOCUMENT_NOT_FOUND,
     EMPTY_DOCUMENT,
+    UNREADABLE_SCAN_PAGE,
     TITLE_EMPTY,
     TITLE_TOO_LONG,
 }
@@ -30,6 +32,7 @@ fun Throwable.toUiError(): UiError = when (this) {
 
     is DocumentNotFoundException -> UiError.DOCUMENT_NOT_FOUND
     is EmptyDocumentException -> UiError.EMPTY_DOCUMENT
+    is UnreadableScanPageException -> UiError.UNREADABLE_SCAN_PAGE
     is IOException -> UiError.STORAGE
     else -> UiError.GENERIC
 }
@@ -40,6 +43,7 @@ fun UiError.messageRes(): Int = when (this) {
     UiError.STORAGE -> R.string.error_storage
     UiError.DOCUMENT_NOT_FOUND -> R.string.error_document_not_found
     UiError.EMPTY_DOCUMENT -> R.string.error_empty_document
+    UiError.UNREADABLE_SCAN_PAGE -> R.string.error_unreadable_scan_page
     UiError.TITLE_EMPTY -> R.string.rename_error_empty
     UiError.TITLE_TOO_LONG -> R.string.rename_error_too_long
 }

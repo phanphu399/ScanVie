@@ -15,6 +15,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import vn.scanviet.app.testing.TestDispatcherProvider
+import vn.scanviet.app.domain.storage.DocumentFileStorage
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class)
