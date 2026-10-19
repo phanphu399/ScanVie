@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nền cửa sổ lúc mở app (trước khi Compose vẽ) - tránh nháy trắng khi dùng chế độ tối. -->
+    <color name="sv_window_background">#FF11141A</color>
+</resources>

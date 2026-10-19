@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  allowBackup="false" đã tắt Auto Backup cho mọi phiên bản Android.
+  File này là cơ chế tương ứng của Android 12+ (API 31+) và loại trừ mọi miền dữ liệu,
+  để tài liệu scan không bao giờ bị đẩy lên Google Drive của người dùng.
+  Sao lưu sẽ do người dùng chủ động thực hiện bằng gói .svbk (xem ARCHITECTURE.md mục 6).
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ScanViet</string>
+
+    <!-- Trang chủ / danh sách tài liệu -->
+    <string name="library_title">Tài liệu của tôi</string>
+    <string name="library_scan_action">Quét tài liệu</string>
+    <string name="library_search_hint">Tìm theo tên tài liệu</string>
+    <string name="library_loading">Đang tải tài liệu…</string>
+    <string name="library_empty_title">Chưa có tài liệu nào</string>
+    <string name="library_empty_message">Bấm “Quét tài liệu” để tạo tài liệu đầu tiên.\nTài liệu được xử lý và lưu ngay trên máy.</string>
+    <string name="library_no_result_title">Không tìm thấy tài liệu</string>
+    <string name="library_no_result_message">Thử từ khoá khác. Ví dụ gõ “hoa don” vẫn tìm được “Hóa đơn”.</string>
+    <string name="library_error_title">Không đọc được danh sách tài liệu</string>
+    <string name="library_retry">Thử lại</string>
+    <string name="library_item_pages">%1$d trang</string>
+    <string name="library_item_updated">Cập nhật %1$s</string>
+    <string name="library_ocr_none">Chưa nhận dạng chữ</string>
+    <string name="library_ocr_running">Đang nhận dạng chữ</string>
+    <string name="library_ocr_done">Đã nhận dạng chữ</string>
+    <string name="library_ocr_failed">Nhận dạng chữ bị lỗi</string>
+
+    <!-- Thao tác chung -->
+    <string name="action_open">Mở</string>
+    <string name="action_rename">Đổi tên</string>
+    <string name="action_delete">Xoá</string>
+    <string name="action_cancel">Huỷ</string>
+    <string name="action_save">Lưu</string>
+    <string name="action_restore">Khôi phục</string>
+    <string name="action_delete_forever">Xoá vĩnh viễn</string>
+    <string name="action_back">Quay lại</string>
+    <string name="action_more">Thêm thao tác</string>
+
+    <!-- Đổi tên -->
+    <string name="rename_dialog_title">Đổi tên tài liệu</string>
+    <string name="rename_dialog_label">Tên tài liệu</string>
+    <string name="rename_error_empty">Tên tài liệu không được để trống.</string>
+    <string name="rename_error_too_long">Tên tài liệu tối đa %1$d ký tự.</string>
+
+    <!-- Xoá vào thùng rác -->
+    <string name="trash_dialog_title">Chuyển vào thùng rác?</string>
+    <string name="trash_dialog_message">“%1$s” sẽ được chuyển vào Thùng rác. Bạn có thể khôi phục trong 30 ngày.</string>
+
+    <!-- Chi tiết tài liệu -->
+    <string name="detail_title_fallback">Tài liệu</string>
+    <string name="detail_not_found">Tài liệu này không còn tồn tại.</string>
+    <string name="detail_section_info">Thông tin</string>
+    <string name="detail_pages_label">Số trang</string>
+    <string name="detail_created_label">Ngày tạo</string>
+    <string name="detail_updated_label">Cập nhật gần nhất</string>
+    <string name="detail_size_label">Dung lượng file</string>
+    <string name="detail_missing_pages_warning">%1$d trang bị thiếu file ảnh trên máy.</string>
+    <string name="detail_ocr_label">Nhận dạng chữ tiếng Việt</string>
+    <string name="detail_ocr_placeholder">Sẽ có ở Giai đoạn 3. Chạy trên thiết bị, không gửi tài liệu lên máy chủ.</string>
+    <string name="detail_export_label">Xuất PDF và chia sẻ</string>
+    <string name="detail_export_placeholder">Sẽ có ở Giai đoạn 2.</string>
+    <string name="detail_section_pages">Các trang</string>
+    <string name="detail_page_label">Trang %1$d</string>
+    <string name="detail_page_missing">Thiếu file ảnh</string>
+
+    <!-- Thùng rác -->
+    <string name="trash_title">Thùng rác</string>
+    <string name="trash_empty_title">Thùng rác trống</string>
+    <string name="trash_empty_message">Tài liệu bị xoá nằm ở đây 30 ngày trước khi bị xoá vĩnh viễn.</string>
+    <string name="trash_deleted_at">Đã xoá %1$s</string>
+    <string name="trash_delete_forever_title">Xoá vĩnh viễn?</string>
+    <string name="trash_delete_forever_message">“%1$s” cùng toàn bộ ảnh và PDF của tài liệu sẽ bị xoá khỏi máy. Không thể hoàn tác.</string>
+    <string name="trash_restored">Đã khôi phục “%1$s”.</string>
+
+    <!-- Màn hình quét (Giai đoạn 1: chưa có chức năng quét) -->
+    <string name="scan_title">Quét tài liệu</string>
+    <string name="scan_coming_soon_title">Chức năng quét sẽ có ở Giai đoạn 2</string>
+    <string name="scan_coming_soon_message">Giai đoạn 2 sẽ tích hợp ML Kit Document Scanner: nhận diện mép giấy, cắt phối cảnh, chỉnh màu, chụp nhiều trang và xuất PDF ngay trên thiết bị.</string>
+    <string name="scan_ready_note">Giai đoạn 1 đã hoàn thành: lưu trữ cục bộ, quản lý tài liệu, tìm kiếm không dấu, thùng rác và cài đặt.</string>
+
+    <!-- Công cụ thử nghiệm, chỉ tồn tại ở bản debug -->
+    <string name="dev_section_title">Công cụ thử nghiệm (chỉ bản debug)</string>
+    <string name="dev_section_message">Tạo một tài liệu mẫu 2 trang để kiểm tra việc ghi file + Room trước khi có chức năng quét.</string>
+    <string name="dev_create_sample">Tạo tài liệu mẫu 2 trang</string>
+    <string name="dev_create_sample_success">Đã tạo tài liệu mẫu.</string>
+
+    <!-- Cài đặt -->
+    <string name="settings_title">Cài đặt</string>
+    <string name="settings_section_appearance">Giao diện</string>
+    <string name="settings_theme_label">Chế độ hiển thị</string>
+    <string name="settings_theme_system">Theo hệ thống</string>
+    <string name="settings_theme_light">Sáng</string>
+    <string name="settings_theme_dark">Tối</string>
+    <string name="settings_section_scan">Quét và xử lý</string>
+    <string name="settings_auto_ocr_label">Tự động nhận dạng chữ sau khi quét</string>
+    <string name="settings_auto_ocr_hint">Nhận dạng chạy trên thiết bị. Tài liệu không được gửi lên máy chủ.</string>
+    <string name="settings_keep_original_label">Giữ lại ảnh gốc chưa chỉnh màu</string>
+    <string name="settings_section_data">Dữ liệu</string>
+    <string name="settings_storage_label">Dung lượng tài liệu đã dùng</string>
+    <string name="settings_open_trash">Mở thùng rác</string>
+    <string name="settings_backup_note">Sao lưu và khôi phục sẽ được bổ sung ở giai đoạn sau, dưới dạng gói file do bạn tự chọn nơi lưu.</string>
+    <string name="settings_section_about">Về ứng dụng</string>
+    <string name="settings_version">Phiên bản %1$s</string>
+    <string name="settings_privacy_note">Tài liệu nằm trong vùng riêng của ứng dụng và không được tải lên máy chủ. Auto Backup của Android đã bị tắt cho ứng dụng này.</string>
+
+    <!-- Lỗi -->
+    <string name="error_generic">Có lỗi xảy ra. Vui lòng thử lại.</string>
+    <string name="error_storage">Không truy cập được bộ nhớ ứng dụng.</string>
+    <string name="error_document_not_found">Tài liệu không còn tồn tại.</string>
+    <string name="error_empty_document">Cần ít nhất một trang để tạo tài liệu.</string>
+
+    <!-- Nội dung mô tả cho trình đọc màn hình -->
+    <string name="cd_open_settings">Mở cài đặt</string>
+    <string name="cd_open_trash">Mở thùng rác</string>
+    <string name="cd_more_actions">Thêm thao tác</string>
+    <string name="cd_search">Tìm kiếm tài liệu</string>
+    <string name="cd_clear_search">Xoá từ khoá tìm kiếm</string>
+    <string name="cd_document_icon">Biểu tượng tài liệu</string>
+</resources>

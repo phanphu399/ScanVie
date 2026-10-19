@@ -1,0 +1,22 @@
+# Chuẩn hoá xuống dòng: LF trong repo cho mọi file text.
+# Windows vẫn dùng được vì Gradle/Kotlin không phụ thuộc CRLF.
+* text=auto eol=lf
+
+# Script Windows phải giữ CRLF, nếu không cmd có thể xử lý sai.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# File nhị phân: không đụng tới.
+*.jar binary
+*.apk binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.keystore binary
+*.jks binary
+
+# Không diff ồn ào ở các file sinh tự động.
+*.json linguist-generated=true
+gradlew linguist-vendored=true
+gradle/wrapper/** linguist-vendored=true

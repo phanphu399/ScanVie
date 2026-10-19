@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Theme Android tối thiểu: chỉ dùng cho nền cửa sổ và thanh hệ thống.
+      Toàn bộ màu sắc/kiểu chữ của giao diện do Compose (ScanVietTheme) quyết định.
+    -->
+    <style name="Theme.ScanViet" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/sv_window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
