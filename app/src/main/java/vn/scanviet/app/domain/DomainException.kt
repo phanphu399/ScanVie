@@ -21,3 +21,11 @@ class EmptyDocumentException : DomainException()
  * (có thể chứa tên tệp) và không được rơi vào log hay thông báo lỗi.
  */
 class UnreadableScanPageException : DomainException()
+
+/**
+ * Trang đã lưu nhưng file ảnh gốc bị mất (thư mục bị xoá ngoài ý muốn, đĩa đầy...).
+ *
+ * Khác [UnreadableScanPageException]: cái này xảy ra khi ĐÃ có tài liệu trong danh sách,
+ * nên lỗi chỉ được báo khi người dùng thao tác (xuất PDF), không phải lúc quét.
+ */
+class PageImageMissingException(val documentId: String, val pageIndex: Int) : DomainException()

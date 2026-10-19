@@ -17,6 +17,16 @@ interface DocumentFileStorage {
     /** Tạo thư mục cho tài liệu và trả về thư mục đó. */
     suspend fun createDocumentDirectory(documentId: String): File
 
+    /**
+     * Tạo một file tạm trong `cacheDir` để chia sẻ ra ngoài (ví dụ PDF gửi qua Zalo, Gmail).
+     *
+     * Vì sao dùng `cacheDir` chứ không phải `filesDir`: nội dung này là bản sao dùng một lần.
+     * Android được phép tự dọn `cacheDir` khi máy hết chỗ, và [cleanScratchSpace] cũng dọn nó.
+     *
+     * @param fileName tên file, KHÔNG được chứa dấu phân cách đường dẫn.
+     */
+    suspend fun createScratchFile(fileName: String): File
+
     /** Đường dẫn tương đối của một trang, dùng trước khi ghi file. */
     fun relativePathFor(documentId: String, pageIndex: Int): String
 

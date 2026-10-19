@@ -1,9 +1,11 @@
 package vn.scanviet.app.ui.library
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,7 +16,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import vn.scanviet.app.R
+import vn.scanviet.app.core.file.PdfFileNames
+import vn.scanviet.app.domain.export.PdfOutputTarget
 import vn.scanviet.app.domain.repository.DocumentRepository
+import vn.scanviet.app.domain.storage.DocumentFileStorage
+import vn.scanviet.app.domain.usecase.ExportDocumentAsPdfUseCase
 import vn.scanviet.app.domain.usecase.RenameDocumentUseCase
 import vn.scanviet.app.navigation.ScanVietRoutes
 import vn.scanviet.app.ui.common.UiMessage
@@ -25,6 +32,8 @@ import vn.scanviet.app.ui.common.toUiMessage
 class DocumentDetailViewModel @Inject constructor(
     private val repository: DocumentRepository,
     private val renameDocument: RenameDocumentUseCase,
+    private val exportDocument: ExportDocumentAsPdfUseCase,
+    private val storage: DocumentFileStorage,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -32,11 +41,20 @@ class DocumentDetailViewModel @Inject constructor(
 
     private val _message = MutableStateFlow<UiMessage?>(null)
     private val _closed = MutableStateFlow(false)
+    private val _isExporting = MutableStateFlow(false)
+
+    /** File PDF trong vùng nháp đang chờ chia sẻ. UI chia sẻ xong phải gọi [onShareHandled]. */
+    private val _shareRequest = MutableStateFlow<File?>(null)
 
     val message: StateFlow<UiMessage?> = _message
 
     /** true khi tài liệu đã bị chuyển vào thùng rác: màn hình tự quay lại danh sách. */
     val closed: StateFlow<Boolean> = _closed
+
+    /** true khi đang tạo PDF: nút xuất bị khoá để tránh bấm hai lần. */
+    val isExporting: StateFlow<Boolean> = _isExporting
+
+    val shareRequest: StateFlow<File?> = _shareRequest
 
     val uiState: StateFlow<DocumentDetailUiState> = combine(
         repository.observeDocument(documentId),
@@ -74,6 +92,63 @@ class DocumentDetailViewModel @Inject constructor(
                 .onSuccess { _closed.value = true }
                 .onFailure { failure -> _message.value = failure.toUiMessage() }
         }
+    }
+
+    /**
+     * Lưu PDF vào nơi người dùng chọn qua Storage Access Framework.
+     *
+     * Điểm dễ bỏ sót: SAF đã tạo file rỗng trước khi ta ghi, nên nếu tạo PDF thất bại thì
+     * phải xoá file đó đi. Để lại một file 0 byte trong thư mục người dùng còn tệ hơn một
+     * thông báo lỗi — người dùng sẽ tưởng mình đã lưu thành công.
+     */
+    fun onSaveCopy(outputUri: String) {
+        if (!beginExport()) return
+        viewModelScope.launch {
+            runCatching { exportDocument(documentId, PdfOutputTarget.SafUri(outputUri)) }
+                .onSuccess { _message.value = UiMessage(R.string.detail_export_saved) }
+                .onFailure { failure -> _message.value = failure.toUiMessage() }
+            _isExporting.value = false
+        }
+    }
+
+    /**
+     * Tạo PDF trong vùng nháp rồi yêu cầu UI mở hộp thoại chia sẻ.
+     *
+     * Vì sao phải ghi ra file trước: hộp thoại chia sẻ cần một URI có sẵn để ứng dụng nhận
+     * đọc; không có cách nào vừa hỏi người dùng chọn ứng dụng vừa ghi trực tiếp sang nó.
+     */
+    fun onSharePdf() {
+        if (!beginExport()) return
+        viewModelScope.launch {
+            val title = (uiState.value as? DocumentDetailUiState.Loaded)?.document?.title.orEmpty()
+            runCatching {
+                val file = storage.createScratchFile(PdfFileNames.forTitle(title))
+                exportDocument(documentId, PdfOutputTarget.LocalFile(file))
+                file
+            }
+                .onSuccess { file -> _shareRequest.value = file }
+                .onFailure { failure -> _message.value = failure.toUiMessage() }
+            _isExporting.value = false
+        }
+    }
+
+    /**
+     * Giành quyền xuất, trả về `false` nếu đang có lần xuất khác chạy.
+     *
+     * Vì sao phải đặt cờ TRƯỚC `launch`: nếu đặt bên trong khối `launch`, hai lần bấm liên
+     * tiếp sẽ đều thấy cờ còn `false` (coroutine chưa kịp chạy), và cả hai đều khởi động —
+     * hai luồng cùng ghi một file PDF, kết quả hỏng. Hàm này giữ việc kiểm tra và đặt cờ
+     * trong cùng một bước đồng bộ, đúng như một khoá.
+     */
+    private fun beginExport(): Boolean {
+        if (_isExporting.value) return false
+        _isExporting.value = true
+        return true
+    }
+
+    /** UI đã mở hộp thoại chia sẻ; xoá yêu cầu để không mở lại khi xoay màn hình. */
+    fun onShareHandled() {
+        _shareRequest.value = null
     }
 
     fun onMessageShown() {

@@ -31,8 +31,42 @@ class LocalDocumentFileStorageTest {
     }
 
     @Test
-    fun `đường dẫn tương đối có dạng documents id page`() {
-        assertEquals(
+    fun `file nháp được tạo trong cacheDir và không nằm cùng chỗ tài liệu`() = runTest {
+        val file = storage.createScratchFile("hop-dong.pdf")
+
+        assertEquals("hop-dong.pdf", file.name)
+        assertTrue("File nháp phải nằm trong cacheDir", file.parentFile?.name == "scan_scratch")
+        assertTrue(
+            "File nháp không được nằm trong filesDir cùng tài liệu",
+            !file.absolutePath.startsWith(context.filesDir.absolutePath),
+        )
+    }
+
+    @Test
+    fun `tên file nháp chứa dấu phân cách đường dẫn thì bị từ chối`() = runTest {
+        // Bảo vệ chống thoát khỏi thư mục nháp: tên file tới từ dữ liệu người dùng.
+        listOf("../thoat-ra.pdf", "a/b.pdf", "a\\b.pdf", "..", "", "   ").forEach { bad ->
+            val result = runCatching { storage.createScratchFile(bad) }
+            assertTrue(
+                "Tên '$bad' phải bị từ chối",
+                result.exceptionOrNull() is IllegalArgumentException,
+            )
+        }
+    }
+
+    @Test
+    fun `dọn vùng nháp xoá luôn file nháp đã tạo`() = runTest {
+        val file = storage.createScratchFile("tam.pdf")
+        file.writeBytes(byteArrayOf(1, 2, 3))
+        assertTrue(file.exists())
+
+        storage.cleanScratchSpace()
+
+        assertFalse("File nháp phải bị xoá", file.exists())
+    }
+
+    @Test
+    fun `đường dẫn tương đối có dạng documents id page`() {        assertEquals(
             "documents/doc-1/page_0001.jpg",
             storage.relativePathFor("doc-1", 1),
         )

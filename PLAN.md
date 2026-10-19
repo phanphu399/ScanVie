@@ -97,6 +97,8 @@ Grayscale/B&W/Đảo màu) → sharpen + denoise → lưu JPG (quality 85, EXIF 
 3. Export PDF nhiều trang, sắp xếp lại trang, chia sẻ/print.
 4. **Deliverable:** dùng được hàng ngày cho việc cá nhân (dogfooding).
 
+> **Đã xong (2a + 2b):** mục 3 đã hoàn thành phần export/chia sẻ PDF khổ A4 và sắp xếp lại trang (làm ngay ở màn hình xem lại sau khi quét). Còn lại của mục 1–2 (thumbnail, grid, chia sẻ JPG) chưa làm — nằm trong Giai đoạn 4 (trải nghiệm).
+
 ### Giai đoạn 3 — OCR tiếng Việt (Tuần 6) ★ marketing hook
 1. OCR 1 trang → hiển thị text, copy, tìm kiếm trong doc.
 2. OCR nền bằng WorkManager, tiến trình trong notification.

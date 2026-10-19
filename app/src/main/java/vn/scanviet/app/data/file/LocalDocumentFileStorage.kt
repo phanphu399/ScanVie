@@ -45,8 +45,21 @@ class LocalDocumentFileStorage @Inject constructor(
         directory
     }
 
-    override suspend fun writePageImage(
-        documentId: String,
+    override suspend fun createScratchFile(fileName: String): File = withContext(dispatchers.io) {
+        require(
+            fileName.isNotBlank() &&
+                fileName != "." &&
+                fileName != ".." &&
+                !fileName.contains('/') &&
+                !fileName.contains('\\'),
+        ) { "Tên file nháp không hợp lệ" }
+        if (!scratchRoot.exists() && !scratchRoot.mkdirs()) {
+            throw IOException("Không tạo được vùng nháp")
+        }
+        File(scratchRoot, fileName)
+    }
+
+    override suspend fun writePageImage(        documentId: String,
         pageIndex: Int,
         jpegBytes: ByteArray,
     ): String = withContext(dispatchers.io) {

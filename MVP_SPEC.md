@@ -115,28 +115,31 @@ Chưa chia module. Toàn bộ nằm trong `:app` với ranh giới package trùn
 app/src/main/java/vn/scanviet/app/
 ├── ScanVietApplication.kt      @HiltAndroidApp + dọn dẹp lúc mở app
 ├── MainActivity.kt             entry duy nhất, chỉ setContent
-├── core/                       → :core:common   (DispatcherProvider, text, format, time, di)
+├── core/                       → :core:common   (DispatcherProvider, text, format, time, file/PdfFileNames, di)
 ├── domain/                     → :core:domain
 │   ├── model/, DocumentRules, exception
 │   ├── repository/             DocumentRepository (cổng)
 │   ├── storage/                DocumentFileStorage (cổng — Giai đoạn 2a chuyển từ data/)
 │   ├── scan/                   PageImageReader + ScannedImage (cổng — Giai đoạn 2a)
-│   └── usecase/                CreateDocument, RenameDocument, ImportScannedDocument
+│   ├── export/                 PdfExporter + PdfPageSource + DocumentOutputTarget/PdfOutputTarget (cổng — 2b)
+│   └── usecase/                CreateDocument, RenameDocument, ImportScannedDocument, ExportDocumentAsPdf
 ├── data/                       → :core:data
 │   ├── local/                  Room (entity, dao, database, converter)
 │   ├── file/                   LocalDocumentFileStorage (cài đặt cổng storage)
 │   ├── scan/                   ContentUriPageImageReader (cài đặt cổng scan)
+│   ├── export/                 ContentUriDocumentOutputTarget (cài đặt cổng ghi — 2b)
 │   ├── settings/, repository/, maintenance/, di/
 │   └── dev/                    SampleDocumentFactory — CHỈ bản debug, R8 loại ở release
 ├── platform/                   → :platform:*
-│   └── scanner/                DocumentScannerEngine (cổng Android) + MlKitDocumentScannerEngine + di/
+│   ├── scanner/                DocumentScannerEngine (cổng Android) + MlKitDocumentScannerEngine + di/
+│   └── pdf/                    AndroidPdfExporter (PdfDocument) + di/ (Giai đoạn 2b)
 ├── ui/                         → :feature:*     (theme, common, components, library, scan, settings, root)
 └── navigation/                 → :app           (nơi DUY NHẤT biết mọi màn hình)
 ```
 
 Kiểm tra được bằng mắt: `domain/` không có import nào của `androidx.compose.*`, `androidx.room.*`, `android.*` hay `vn.scanviet.app.data.*`.
 
-Hai cổng dùng kiểu Android (`DocumentFileStorage` dùng `java.io.File`; `PageImageReader` dùng `String` URI) là chủ ý: chúng vẫn là hợp đồng thuần Kotlin/JVM nên use case kiểm thử được bằng cài đặt giả. Thứ **không thể** diễn đạt bằng domain — `DocumentScannerEngine` cần `Activity` và `IntentSender` — được đẩy ra `platform/scanner/` để domain sạch.
+Ba cổng dùng kiểu gần-Android (`DocumentFileStorage` dùng `java.io.File`; `PageImageReader` dùng `String` URI; `PdfExporter` dùng `java.io.File` + `OutputStream`) là chủ ý: chúng vẫn là hợp đồng thuần Kotlin/JVM nên use case kiểm thử được bằng cài đặt giả. Thứ **không thể** diễn đạt bằng domain — `DocumentScannerEngine` cần `Activity` và `IntentSender` — được đẩy ra `platform/scanner/` để domain sạch.
 
 ### 3.2. Thiết kế đích (khi tách module)
 
@@ -190,15 +193,22 @@ từng file, nêu rõ đường dẫn, dependency cần thêm, cách kiểm th�
 
 ## 6. Kiểm thử
 
-### 6.1. Đã có test tự động (101 test, 0 lỗi — chạy `./gradlew testDebugUnitTest`)
+### 6.1. Đã có test tự động (140 test, 0 lỗi — chạy `./gradlew testDebugUnitTest`)
 
 | Nhóm | Test | Nội dung |
 |---|---|---|
-| Lưu trữ file | `LocalDocumentFileStorageTest` (12) | đường dẫn tương đối, ghi `.tmp` rồi đổi tên, chặn thoát khỏi vùng app, xoá thư mục |
+| Tiện ích | `FormattersTest` (9), `VnTextNormalizerTest` (8) | định dạng ngày/dung lượng; tìm kiếm không dấu |
+| Tên file PDF | `PdfFileNamesTest` (9) | bỏ dấu tiếng Việt (`đ` → `d`, không xoá); **loại `\/` và `..`** (ranh giới bảo mật tên file); loại ký tự hệ điều hành cấm; cắt ngắn tên dài; tên rỗng/toàn ký tự lạ → tên dự phòng dùng được |
+| Lưu trữ file | `LocalDocumentFileStorageTest` (15) | đường dẫn tương đối, ghi `.tmp` rồi đổi tên, chặn thoát khỏi vùng app, xoá thư mục; **file nháp nằm trong `cacheDir` không cùng chỗ tài liệu**; **tên file nháp chứa dấu `/` hay `..` bị từ chối**; dọn nháp xoá được file nháp |
+| Ghi PDF ra đích | `ContentUriDocumentOutputTargetTest` (5) | ghi file thật đúng nội dung; **ghi đè nội dung ngắn hơn phải cắt đuôi file cũ** (nếu không PDF sẽ hỏng); tạo thư mục cha; URI/junk sai → `IOException` rõ ràng |
 | Luồng quét — nhập ảnh | `ImportScannedDocumentUseCaseTest` (9) | 2 trang → đủ 2 file + 2 bản ghi; giữ đúng thứ tự; nội dung file khớp bytes; **lỗi ghi Room → xoá sạch thư mục**; 1 trang đọc lỗi → lỗi riêng + dọn file; lỗi đọc ảnh **không mang theo URI**; từ chối tên rỗng/quá dài **trước khi** ghi file |
-| Luồng quét — màn hình | `ScanViewModelTest` (17) | chuẩn bị quét → phát `IntentSender`; xoá yêu cầu sau khi dùng (xoay màn hình không mở lại); máy không hỗ trợ → thông báo riêng; huỷ → về trạng thái chờ; nhận kết quả → danh sách trang + tên mặc định; chuyển trang lên/xuống, bỏ qua chỉ số ngoài danh sách; xoá trang; xoá hết trang → không cho lưu; lưu thành công → file thật + bản ghi + `Saved`; lưu lỗi → giữ nguyên trang, có thông báo |
+| Luồng xuất PDF — nghiệp vụ | `ExportDocumentAsPdfUseCaseTest` (11) | đúng số trang và đúng file; **sắp theo `pageIndex` ngay cả khi database trả về lộn thứ tự**; truyền góc xoay; thiếu ảnh → `PageImageMissingException` **kèm số trang**, không xuất PDF thiếu trang; lỗi thiếu ảnh **không mang đường dẫn**; tài liệu không tồn tại/rỗng → từ chối **trước khi mở stream**; **stream đóng đúng một lần, kể cả khi exporter lỗi**; mở đích ghi đúng một lần cho tài liệu nhiều trang |
+| Luồng xuất PDF — màn hình | `DocumentDetailViewModelTest` (10) | lưu bản sao → ghi PDF + báo thành công; truyền đúng URI người dùng chọn; chia sẻ → **file PDF thật tồn tại trong vùng nháp**; tên file theo tên tài liệu (bỏ dấu); xoá yêu cầu chia sẻ sau khi xử lý (xoay màn hình không mở lại); thiếu ảnh → thông báo **kèm số trang** và **không** phát yêu cầu chia sẻ; lỗi ghi/lỗi mở đích → `isExporting` trở về `false` (nút không kẹt) |
+| Luồng quét — màn hình | `ScanViewModelTest` (17) | chuẩn bị quét → phát `IntentSender`; xoá yêu cầu sau khi dùng; máy không hỗ trợ → thông báo riêng; huỷ → về trạng thái chờ; nhận kết quả → danh sách trang + tên mặc định; chuyển trang lên/xuống, bỏ qua chỉ số ngoài danh sách; xoá trang; xoá hết trang → không cho lưu; lưu thành công → file thật + bản ghi + `Saved`; lưu lỗi → giữ nguyên trang, có thông báo |
+| Thư viện | `LibraryViewModelTest` (13), `DocumentStorageMaintenanceTest` (7) | trạng thái rỗng/tìm kiếm/đổi tên/xoá; dọn thùng rác quá hạn, thư mục mồ côi |
+| Giới hạn của bộ test | `RobolectricPdfLimitationTest` (1) | ghi lại **bằng chứng** rằng Robolectric không chạy được `PdfDocument` (`startPage` → `IllegalStateException: document is closed!`), để không ai tưởng phần sinh PDF đã được kiểm thử |
 
-**Điều test tự động KHÔNG chứng minh được:** chính trình quét của ML Kit (nó là Activity của Play services), việc cấp quyền camera, việc tải công cụ quét lần đầu, và mọi thứ về bố cục/giao diện. Xem 6.3.
+**Điều test tự động KHÔNG chứng minh được:** chính trình quét của ML Kit (nó là Activity của Play services), việc cấp quyền camera, việc tải công cụ quét lần đầu, **chất lượng file PDF do `android.graphics.pdf.PdfDocument` sinh ra**, và mọi thứ về bố cục/giao diện. Xem 6.3.
 
 ### 6.2. Dữ liệu thật cho OCR (Giai đoạn 3)
 
@@ -228,6 +238,19 @@ Không có thiết bị/emulator trong môi trường phát triển, nên các m
 6. Sau khi tải xong, **bật máy bay** rồi quét lại → phải chạy được.
 7. Đóng app giữa lúc đang lưu (bấm Lưu rồi tắt app) → mở lại: không có tài liệu nửa vời, không có thư mục rác.
 8. Giao diện: tiếng Việt dài có bị cắt không, chế độ tối, màn hình nhỏ.
+
+**Xuất và chia sẻ PDF (Giai đoạn 2b) — cũng chưa từng chạy:**
+
+9. Mở một tài liệu nhiều trang → "Lưu bản PDF" → chọn thư mục Tải về → mở file bằng trình đọc PDF của máy: **đủ trang, đúng thứ tự, không bị cắt mép chữ**.
+10. Kiểm tra khổ trang: tài liệu A4 in ra vừa tờ; ảnh chụp ngang tạo ra trang A4 **ngang**, không bị bóp méo.
+11. "Chia sẻ PDF" → chọn Zalo/Gmail → file nhận được mở được ở đầu bên kia.
+12. Chia sẻ vào ứng dụng chỉ nhận ảnh hoặc không nhận PDF → app **không** crash (hộp thoại chia sẻ không nên hiện ứng dụng đó, nhưng nếu có thì phải hiện thông báo).
+13. Xuất lại vào **cùng một file** đã có nội dung dài hơn → file kết quả phải mở được (kiểm tra chế độ ghi đè `"wt"`; nếu để lại đuôi file cũ thì PDF sẽ hỏng).
+14. Xoá file ảnh của một trang (qua trình quản lý file / adb) rồi bấm xuất → phải báo **"Trang N bị thiếu file ảnh"**, **không** tạo ra PDF thiếu trang.
+15. Máy ít dung lượng: xuất tài liệu 20 trang → không bị kill giữa chừng, không hết RAM.
+16. Chọn nơi lưu là Google Drive → xác nhận file thật sự được tải lên (SAF qua provider là con đường dễ lộ lỗi cấp quyền nhất).
+
+Lý do các mục 9–16 phải làm bằng tay: Robolectric **không chạy được** `android.graphics.pdf.PdfDocument` (xem `RobolectricPdfLimitationTest`), nên chất lượng file PDF do `platform/pdf/AndroidPdfExporter` sinh ra không thể xác nhận bằng unit test. Ngược lại, mục 13 và 14 có test tự động bảo vệ phần logic; việc kiểm tay là để xác nhận bản thân file PDF đúng.
 
 Quy trình mỗi lần test: chạy offline hoàn toàn (máy chế độ máy bay) → xác nhận scan/OCR/xuất PDF vẫn chạy → ghi scorecard thủ công theo nhóm tài liệu. Sau này thêm mini-harness: thả ảnh fixture vào `androidTest/assets`, so khớp text kỳ vọng.
 

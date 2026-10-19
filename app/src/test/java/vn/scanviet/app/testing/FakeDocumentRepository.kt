@@ -26,6 +26,15 @@ class FakeDocumentRepository : DocumentRepository {
     /** Bật lên để mô phỏng lỗi ghi database (dùng để kiểm tra việc dọn file rác). */
     var failCreate: Boolean = false
 
+    /**
+     * Ghi đè `pageIndex` khi tạo trang, mô phỏng database bị lệch thứ tự.
+     *
+     * Tình huống có thật: một bản ghi cũ được sửa tay, hoặc migration đánh số lại trang.
+     * Khi đó `observePages` trả về thứ tự khác với giá trị `pageIndex`, và use case xuất PDF
+     * phải sắp xếp lại theo `pageIndex` chứ không tin vào thứ tự trả về.
+     */
+    var pageIndexOverride: ((position: Int) -> Int)? = null
+
     var lastCreatedTitle: String? = null
         private set
 
@@ -102,10 +111,11 @@ class FakeDocumentRepository : DocumentRepository {
         documentsState.value = documentsState.value + document
         pagesState.value = pagesState.value + (
             documentId to pages.mapIndexed { index, page ->
+                val pageIndex = pageIndexOverride?.invoke(index) ?: (index + 1)
                 DocumentPage(
-                    id = "${documentId}_p${index + 1}",
+                    id = "${documentId}_p$pageIndex",
                     documentId = documentId,
-                    pageIndex = index + 1,
+                    pageIndex = pageIndex,
                     imageFile = page.relativePath,
                     width = page.width,
                     height = page.height,

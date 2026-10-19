@@ -7,6 +7,7 @@ import vn.scanviet.app.domain.DocumentNotFoundException
 import vn.scanviet.app.domain.DocumentRules
 import vn.scanviet.app.domain.EmptyDocumentException
 import vn.scanviet.app.domain.InvalidDocumentTitleException
+import vn.scanviet.app.domain.PageImageMissingException
 import vn.scanviet.app.domain.TitleValidationError
 import vn.scanviet.app.domain.UnreadableScanPageException
 
@@ -20,6 +21,8 @@ enum class UiError {
     DOCUMENT_NOT_FOUND,
     EMPTY_DOCUMENT,
     UNREADABLE_SCAN_PAGE,
+    PAGE_IMAGE_MISSING,
+    EXPORT_FAILED,
     TITLE_EMPTY,
     TITLE_TOO_LONG,
 }
@@ -33,6 +36,7 @@ fun Throwable.toUiError(): UiError = when (this) {
     is DocumentNotFoundException -> UiError.DOCUMENT_NOT_FOUND
     is EmptyDocumentException -> UiError.EMPTY_DOCUMENT
     is UnreadableScanPageException -> UiError.UNREADABLE_SCAN_PAGE
+    is PageImageMissingException -> UiError.PAGE_IMAGE_MISSING
     is IOException -> UiError.STORAGE
     else -> UiError.GENERIC
 }
@@ -44,6 +48,8 @@ fun UiError.messageRes(): Int = when (this) {
     UiError.DOCUMENT_NOT_FOUND -> R.string.error_document_not_found
     UiError.EMPTY_DOCUMENT -> R.string.error_empty_document
     UiError.UNREADABLE_SCAN_PAGE -> R.string.error_unreadable_scan_page
+    UiError.PAGE_IMAGE_MISSING -> R.string.error_page_image_missing
+    UiError.EXPORT_FAILED -> R.string.error_export_failed
     UiError.TITLE_EMPTY -> R.string.rename_error_empty
     UiError.TITLE_TOO_LONG -> R.string.rename_error_too_long
 }

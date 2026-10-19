@@ -43,6 +43,25 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          FileProvider để chia sẻ PDF qua ứng dụng khác (Zalo, Gmail, Drive).
+          Vì sao cần: từ Android 7 (API 24) trở đi, gửi `file://` trong Intent sẽ ném
+          FileUriExposedException. FileProvider cấp một `content://` URI tạm thời, chỉ mở
+          đúng thư mục khai báo trong @xml/file_paths, và tự hết hiệu lực sau khi chia sẻ.
+
+          `exported=false` + `grantUriPermissions=true`: ứng dụng khác không tự truy cập
+          được, chỉ nhận file khi ta chủ động cấp quyền cho đúng Intent đó.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

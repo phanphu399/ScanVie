@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Vùng file được phép chia sẻ ra ngoài qua FileProvider.
+
+  Nguyên tắc: chỉ mở ĐÚNG thư mục nháp. Tuyệt đối không khai báo `filesDir` hay
+  `external-path` ở đây, vì khai báo thừa nghĩa là ứng dụng khác có thể xin đọc ảnh và
+  dữ liệu riêng của tài liệu.
+
+  `cache/scan_scratch/` là nơi `DocumentFileStorage.createScratchFile` tạo file PDF tạm để
+  chia sẻ, và nó bị dọn trong `cleanScratchSpace()`.
+-->
+<paths>
+    <cache-path
+        name="scan_scratch"
+        path="scan_scratch/" />
+</paths>

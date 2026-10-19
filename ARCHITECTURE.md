@@ -31,13 +31,15 @@ filesDir/
         └── page_0002.jpg
 
 cacheDir/
-└── scan_scratch/              (vùng cho file tạm. Hiện luồng quét KHÔNG dùng nó:
-                                ảnh được đọc trực tiếp từ URI của trình quét và ghi
-                                thẳng vào documents/<uuid>/page_XXXX.jpg. Sẽ dùng cho
-                                bản PDF tạm khi chia sẻ — Giai đoạn 2b.)
+└── scan_scratch/              (vùng cho file tạm)
+    └── <ten-tai-lieu>.pdf     (PDF tạm sinh ra để chia sẻ — Giai đoạn 2b)
 ```
 
+Luồng quét **không** dùng `scan_scratch/`: ảnh được đọc trực tiếp từ URI của trình quét và ghi thẳng vào `documents/<uuid>/page_XXXX.jpg`. Thư mục nháp chỉ dùng cho PDF tạm khi chia sẻ, và bị dọn trong `cleanScratchSpace()` lúc mở app. Toàn bộ thư mục nháp bị dọn khi mở app nên **không** có nguy cơ tích tụ dung lượng.
+
 **Chưa có** (đúng phạm vi, không phải thiếu sót): `thumbs/` (không dùng thư viện tải ảnh), bản sao PDF cố định trong app (xuất PDF là *lưu bản sao* ra nơi người dùng chọn bằng SAF, không lưu thêm một bản vào app để không gấp đôi dung lượng), và `doc.pdf` trong thư mục tài liệu.
+
+Vì sao PDF chia sẻ **không** nằm trong `filesDir/documents/<uuid>/`: nội dung đó là bản sao dùng một lần. Để trong `cacheDir` thì Android được phép tự dọn khi máy hết chỗ, và người dùng không thấy dung lượng app phình lên sau mỗi lần chia sẻ.
 
 Quy tắc bất di bất dịch của luồng ghi dữ liệu — gọi là **"ghi file trước, ghi Room sau, lỗi thì dọn"**:
 
@@ -121,14 +123,22 @@ backupLastAt     = Long?
 
 ## 5. Xuất / chia sẻ file (SAF)
 
-> **Trạng thái: chưa code (Giai đoạn 2b).** Giai đoạn 2a chỉ xong phần quét + lưu vào vùng riêng của app.
+> **Trạng thái: đã code (Giai đoạn 2b).** Xem `platform/pdf/AndroidPdfExporter`, `data/export/ContentUriDocumentOutputTarget`, `domain/usecase/ExportDocumentAsPdfUseCase`.
 
 - **Xuất PDF ra chỗ người dùng chọn:** `ActivityResultContracts.CreateDocument("application/pdf")` → ghi bản sao. File đã xuất nằm ngoài vùng app nên **không** bị xoá khi gỡ app (đúng như bảng của bạn).
-- **Chia sẻ nhanh:** `FileProvider` + `ACTION_SEND` (`content://` URI) — chỉ chia sẻ bản copy/single-doc, không expose toàn bộ thư mục.
-- **Thư mục mặc định (tuỳ chọn):** `OpenDocumentTree` + `takePersistableUriPermission` để lần sau export 1 chạm.
+- **Chia sẻ nhanh:** `FileProvider` + `ACTION_SEND` (`content://` URI). Authority là `${applicationId}.fileprovider`; `res/xml/file_paths.xml` **chỉ** mở `cache-path` của `scan_scratch/` — không expose `filesDir` và không expose cả cây thư mục.
+- **Ghi đè phải cắt bớt:** mở bằng chế độ `"wt"`, không phải `"w"`. `"w"` để lại đuôi của file cũ khi nội dung mới ngắn hơn → PDF hỏng. Đã có test riêng cho hành vi này.
+- **Thư mục mặc định (tuỳ chọn):** `OpenDocumentTree` + `takePersistableUriPermission` để lần sau export 1 chạm — **chưa làm**, sẽ cân nhắc ở Giai đoạn 4.
 - Không xin `READ/WRITE_EXTERNAL_STORAGE` ở bất kỳ đâu → ít rủi ro bị Play soi quyền.
 
-Vị trí hợp đồng xuất PDF (quan trọng cho quy tắc phụ thuộc): hợp đồng **thuần Kotlin** — nhận `List<File>` ảnh trang và `OutputStream` đầu ra — nên nằm ở `domain/export/`; cài đặt thật dùng `android.graphics.pdf.PdfDocument` nằm ở `platform/pdf/`. Nhờ vậy use case xuất PDF kiểm thử được trong JVM thuần, và việc đổi sang thư viện PDF khác (nếu `PdfDocument` không đủ) chỉ sửa `platform/pdf/`.
+Vị trí hợp đồng xuất PDF (quan trọng cho quy tắc phụ thuộc): cổng **thuần Kotlin** nằm ở `domain/export/`:
+
+- `PdfExporter.export(OutputStream, List<PdfPageSource>)` — `PdfPageSource` chỉ chứa `java.io.File` + góc xoay.
+- `DocumentOutputTarget.open(PdfOutputTarget)` — tách riêng khỏi `PdfExporter` vì hai việc khác nhau: *mở đâu* (Android, cần `Context`/`ContentResolver`) và *ghi gì* (thuần JVM). Gộp lại sẽ kéo `ContentResolver` vào use case và làm mất khả năng kiểm thử trên JVM.
+
+Cài đặt thật: `platform/pdf/AndroidPdfExporter` (dùng `android.graphics.pdf.PdfDocument`) và `data/export/ContentUriDocumentOutputTarget`. Đổi sang thư viện PDF khác chỉ cần sửa `platform/pdf/`.
+
+**Giới hạn đã đo được:** `android.graphics.pdf.PdfDocument` **không chạy được** trên Robolectric (xem `RobolectricPdfLimitationTest`), nên chất lượng file PDF do exporter sinh ra chỉ xác nhận được trên thiết bị thật. Phần logic của use case thì đã kiểm thử tự động đầy đủ.
 
 ---
 
@@ -242,7 +252,8 @@ Không phải cổng nào cũng được đặt ở chỗ giống nhau. Tiêu ch
 | `DocumentRepository` | `domain/repository/` | thuần Kotlin, không cần Android |
 | `DocumentFileStorage` | `domain/storage/` | chỉ dùng `java.io.File`; use case ghi trang cần nó mà không được biết `Context` |
 | `PageImageReader` | `domain/scan/` | nhận `String` (URI dạng chuỗi); cài đặt thật (`ContentResolver`) nằm ở `data/scan/` |
-| `PdfExporter` (Giai đoạn 2b) | `domain/export/` | nhận `List<File>` + `OutputStream`; `PdfDocument` thật nằm ở `platform/pdf/` |
+| `PdfExporter` ✅ | `domain/export/` | nhận `java.io.File` + `OutputStream`; `PdfDocument` thật nằm ở `platform/pdf/` |
+| `DocumentOutputTarget` ✅ | `domain/export/` | nhận `PdfOutputTarget` (sealed: SAF URI hoặc file nháp); `ContentResolver` thật nằm ở `data/export/` |
 | `DocumentScannerEngine` | `platform/scanner/` | **bắt buộc** phải nhận `Activity`/`IntentSender` — đó là Activity của Play services, không thể diễn đạt bằng domain |
 
 Hệ quả: `domain/` không import `android.*` (chỉ `java.io`/`java.util`); `ui/` không import `data/` — trừ khi đi qua cổng trong `domain/`. Thứ Android không diễn đạt được thì đẩy ra `platform/` và để `ui/` làm công việc chuyển tiếp `IntentSender`/`Intent`.

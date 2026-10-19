@@ -53,7 +53,12 @@
     <string name="detail_ocr_label">Nhận dạng chữ tiếng Việt</string>
     <string name="detail_ocr_placeholder">Sẽ có ở Giai đoạn 3. Chạy trên thiết bị, không gửi tài liệu lên máy chủ.</string>
     <string name="detail_export_label">Xuất PDF và chia sẻ</string>
-    <string name="detail_export_placeholder">Sẽ có ở Giai đoạn 2.</string>
+    <string name="detail_export_save">Lưu bản PDF</string>
+    <string name="detail_export_share">Chia sẻ PDF</string>
+    <string name="detail_export_note">PDF khổ A4, mỗi trang một tờ. Bạn tự chọn nơi lưu; ứng dụng không tải file lên máy chủ.</string>
+    <string name="detail_export_running">Đang tạo PDF…</string>
+    <string name="detail_export_share_chooser">Chia sẻ PDF qua</string>
+    <string name="detail_export_saved">Đã lưu PDF.</string>
     <string name="detail_section_pages">Các trang</string>
     <string name="detail_page_label">Trang %1$d</string>
     <string name="detail_page_missing">Thiếu file ảnh</string>
@@ -121,6 +126,8 @@
     <string name="error_document_not_found">Tài liệu không còn tồn tại.</string>
     <string name="error_empty_document">Cần ít nhất một trang để tạo tài liệu.</string>
     <string name="error_unreadable_scan_page">Không đọc được ảnh vừa quét. Hãy quét lại trang đó.</string>
+    <string name="error_page_image_missing">Trang %1$d bị thiếu file ảnh trên máy nên không xuất được PDF.</string>
+    <string name="error_export_failed">Không tạo được file PDF. Hãy thử lại hoặc chọn nơi lưu khác.</string>
 
     <!-- Nội dung mô tả cho trình đọc màn hình -->
     <string name="cd_open_settings">Mở cài đặt</string>
