@@ -12,3 +12,7 @@ local.properties
 *.jks
 *.keystore
 .DS_Store
+
+# Release keystore (NEVER commit)
+*.keystore
+*.jks

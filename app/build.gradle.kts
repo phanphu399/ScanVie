@@ -51,6 +51,19 @@ android {
         }
     }
 
+signingConfigs {
+        create("release") {
+            // Chỉ cấu hình nếu keystore tồn tại, để build không fail trên máy mới clone.
+            val ks = file("../scanviet-release.keystore")
+            if (ks.exists()) {
+                storeFile = ks
+                storePassword = "scanviet2026"
+                keyAlias = "scanviet"
+                keyPassword = "scanviet2026"
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
@@ -58,6 +71,11 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // Ký bản phát hành nếu keystore tồn tại (xem scanviet-release.keystore).
+            // Vì sao điều kiện: keystore không nằm trong repo (bảo mật), nên máy mới
+            // clone về sẽ build bản release chưa ký — vẫn chạy được, chỉ là chưa cài được
+            // trực tiếp (cần ký tay). Máy có keystore thì tự ký.
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
