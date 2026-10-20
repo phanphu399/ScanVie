@@ -19,6 +19,12 @@ import vn.scanviet.app.domain.TitleValidationError
 /**
  * Hộp thoại đổi tên. Kiểm tra ngay khi người dùng gõ bằng đúng quy tắc của domain
  * ([DocumentRules]) nên không thể lưu một tên không hợp lệ.
+ *
+ * `rememberSaveable(initialTitle)` — khoá theo tên ban đầu là điều bắt buộc, không
+ * phải chi tiết vụn: Compose tái dùng composable giữa hai tài liệu khác nhau. Nếu chỉ
+ * `rememberSaveable` trơn, đổi tên tài liệu A rồi mở hộp thoại của tài liệu B trong
+ * cùng một màn hình cha, ô nhập sẽ giữ TÊN CŨ của A. Khoá theo [initialTitle] buộc
+ * trạng thái được tạo lại đúng khi mở cho tài liệu khác.
  */
 @Composable
 fun RenameDocumentDialog(
@@ -26,7 +32,7 @@ fun RenameDocumentDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var title by rememberSaveable { mutableStateOf(initialTitle) }
+    var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
     val validationError = DocumentRules.titleError(title)
 
     AlertDialog(

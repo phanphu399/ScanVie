@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nền cửa sổ cho chế độ TỐI.
+
+  Vì sao cần file này: Android chọn tài nguyên theo cấu hình hệ thống (uiMode). Khi
+  điện thoại đang ở chế độ tối, cửa sổ dùng màu này thay cho màu ở values/colors.xml.
+  Không có nó, ứng dụng nháy một khung hình nền sáng trước khi Compose vẽ xong —
+  rất rõ khi mở ứng dụng trong phòng tối.
+
+  Giá trị trùng với `SurfaceDark` trong Color.kt. Hai nơi phải khớp nhau; đây là cái
+  giá của việc theme XML không đọc được hằng số Kotlin.
+-->
 <resources>
-    <!-- Nền cửa sổ lúc mở app (trước khi Compose vẽ) - tránh nháy trắng khi dùng chế độ tối. -->
-    <color name="sv_window_background">#FF11141A</color>
+    <color name="sv_window_background">#FF101418</color>
 </resources>

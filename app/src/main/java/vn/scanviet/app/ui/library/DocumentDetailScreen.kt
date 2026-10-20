@@ -1,6 +1,10 @@
 package vn.scanviet.app.ui.library
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,13 +16,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -44,6 +51,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -61,12 +70,16 @@ import java.io.File
 import vn.scanviet.app.R
 import vn.scanviet.app.core.file.PdfFileNames
 import vn.scanviet.app.core.format.Formatters
+import vn.scanviet.app.domain.image.PageImageLoader
+import vn.scanviet.app.domain.model.DocumentPage
 import vn.scanviet.app.domain.model.OcrStatus
 import vn.scanviet.app.domain.model.OcrText
 import vn.scanviet.app.ui.common.asString
 import vn.scanviet.app.ui.common.messageRes
+import vn.scanviet.app.ui.common.rememberPageImage
 import vn.scanviet.app.ui.components.ConfirmDialog
 import vn.scanviet.app.ui.components.EmptyState
+import vn.scanviet.app.ui.components.EmptyStateTone
 import vn.scanviet.app.ui.components.SectionHeader
 
 /**
@@ -192,6 +205,7 @@ fun DocumentDetailScreen(
                     message = stringResource(R.string.detail_not_found),
                     actionLabel = stringResource(R.string.action_back),
                     onAction = onBack,
+                    tone = EmptyStateTone.ERROR,
                 )
 
                 is DocumentDetailUiState.Failed -> EmptyState(
@@ -200,6 +214,7 @@ fun DocumentDetailScreen(
                     message = stringResource(state.error.messageRes()),
                     actionLabel = stringResource(R.string.action_back),
                     onAction = onBack,
+                    tone = EmptyStateTone.ERROR,
                 )
 
                 is DocumentDetailUiState.Loaded -> LazyColumn(
@@ -208,7 +223,10 @@ fun DocumentDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     item {
-                        SectionHeader(text = stringResource(R.string.detail_section_info))
+                        SectionHeader(
+                            text = stringResource(R.string.detail_section_info),
+                            leadingIcon = Icons.Default.Info,
+                        )
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 InfoRow(
@@ -246,12 +264,28 @@ fun DocumentDetailScreen(
                     }
 
                     item {
-                        SectionHeader(text = stringResource(R.string.detail_section_pages))
-                        PagesCard(state = state, onOpenPage = onOpenPage)
+                        SectionHeader(
+                            text = stringResource(R.string.detail_section_pages),
+                            leadingIcon = Icons.AutoMirrored.Filled.List,
+                        )
+                        Text(
+                            text = stringResource(R.string.detail_pages_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+                        )
+                        PagesCard(
+                            state = state,
+                            onOpenPage = onOpenPage,
+                            imageLoader = viewModel.thumbnailLoader,
+                        )
                     }
 
                     item {
-                        SectionHeader(text = stringResource(R.string.detail_ocr_label))
+                        SectionHeader(
+                            text = stringResource(R.string.detail_ocr_label),
+                            leadingIcon = Icons.Default.Create,
+                        )
                         OcrSection(
                             state = state,
                             isRecognizing = isRecognizing,
@@ -262,7 +296,10 @@ fun DocumentDetailScreen(
                     }
 
                     item {
-                        SectionHeader(text = stringResource(R.string.detail_export_label))
+                        SectionHeader(
+                            text = stringResource(R.string.detail_export_label),
+                            leadingIcon = Icons.Default.Share,
+                        )
                         ExportSection(
                             isExporting = isExporting,
                             isRecognizing = isRecognizing,
@@ -309,47 +346,105 @@ fun DocumentDetailScreen(
 }
 
 /**
- * Danh sách trang. Mỗi trang là một nút mở màn hình xem ảnh toàn màn hình.
+ * Danh sách trang, mỗi trang có ẢNH THU NHỎ bấm được để mở màn hình xem toàn màn hình.
  *
- * Vì sao dùng `TextButton` chứ không `Card` cho từng trang: người dùng có thể đọc "Trang 7"
- * là nhãn chứ không đoán được là bấm được. Nút có mũi tên/chữ rõ ràng hơn về mặt khả dụng.
+ * **Vì sao phải có ảnh thu nhỏ:** trước đây mỗi dòng chỉ là chữ "Trang 1", "Trang 2".
+ * Với người dùng, đó là danh sách vô nghĩa — họ không phân biệt được trang nào là
+ * trang nào cho tới khi bấm vào từng trang. Ảnh thu nhỏ biến danh sách thành thứ
+ * nhìn là hiểu, và cũng là cách kiểm tra nhanh xem trình quét có cắt sai trang nào
+ * không. Đây là khác biệt lớn nhất về mặt thị giác của màn hình này.
+ *
+ * Dùng `Row` bấm được (không phải `Card` lồng `Card`) để cả dòng là một mục tiêu bấm,
+ * thay vì chỉ có nút nhỏ ở cuối.
+ *
+ * `imageLoader` được truyền vào (không tạo mới) để dùng chung bộ nhớ đệm ảnh với màn
+ * hình thư viện — nếu tạo riêng, mỗi lần mở tài liệu lại giải mã ảnh từ đĩa.
  */
 @Composable
 private fun PagesCard(
     state: DocumentDetailUiState.Loaded,
     onOpenPage: (Int) -> Unit,
+    imageLoader: PageImageLoader,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(8.dp)) {
+        Column(modifier = Modifier.padding(vertical = 4.dp)) {
             state.pages.sortedBy { it.pageIndex }.forEach { page ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.detail_page_label, page.pageIndex),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f).padding(start = 8.dp, top = 4.dp, bottom = 4.dp),
-                    )
-                    if (page.pageIndex in state.missingPageIndices) {
-                        Text(
-                            text = stringResource(R.string.detail_page_missing),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    } else {
-                        TextButton(onClick = { onOpenPage(page.pageIndex) }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.List,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = stringResource(R.string.detail_view_pages))
-                        }
-                    }
-                }
+                PageRow(
+                    page = page,
+                    isMissing = page.pageIndex in state.missingPageIndices,
+                    onOpenPage = onOpenPage,
+                    imageLoader = imageLoader,
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun PageRow(
+    page: DocumentPage,
+    isMissing: Boolean,
+    onOpenPage: (Int) -> Unit,
+    imageLoader: PageImageLoader,
+) {
+    val thumbnail = rememberPageImage(
+        relativePath = if (isMissing) null else page.imageFile,
+        loader = imageLoader,
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !isMissing) { onOpenPage(page.pageIndex) }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Ô ảnh cố định tỉ lệ 3:4 như trang giấy, giống hệt dòng trong màn hình thư viện
+        // -> hai màn hình trông như cùng một ứng dụng.
+        Box(
+            modifier = Modifier
+                .size(width = PAGE_THUMB_WIDTH, height = PAGE_THUMB_HEIGHT)
+                .clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (thumbnail != null) {
+                Image(
+                    bitmap = thumbnail,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.List,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Text(
+            text = stringResource(R.string.detail_page_label, page.pageIndex),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
+
+        if (isMissing) {
+            Text(
+                text = stringResource(R.string.detail_page_missing),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        } else {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = stringResource(R.string.detail_open_page),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -411,11 +506,13 @@ private fun OcrSection(
                         modifier = Modifier.weight(1f),
                     ) {
                         Icon(
-                            // Không có `ContentCopy` trong material-icons-core 1.7.6 (đã liệt kê
-                            // class trong AAR). `Create` (bút chì) là biểu tượng gần nghĩa nhất
-                            // trong bộ icon sẵn có, và không tốn thêm ~10 MB cho
-                            // material-icons-extended chỉ vì một biểu tượng.
-                            imageVector = Icons.Default.Create,
+                            // `material-icons-core` 1.7.6 chỉ có 50 biểu tượng và KHÔNG có
+                            // `ContentCopy` (đã liệt kê class trong AAR để kiểm chứng). Dùng
+                            // `Create` (bút chì) từng gây nhầm vì màn hình này cũng dùng `Edit`
+                            // (cũng là bút chì) cho "Đổi tên" — hai nút khác nghĩa, một hình.
+                            // Chọn `Check` cho copy: đọc là "lấy xong", và không đụng biểu
+                            // tượng nào khác trên màn hình.
+                            imageVector = Icons.Default.Check,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
                         )
@@ -583,6 +680,10 @@ private fun OcrStatus.ocrStatusMessageRes(): Int = when (this) {
 private const val PDF_MIME_TYPE = "application/pdf"
 private const val MAX_PREVIEW_PAGES = 3
 private const val MAX_PREVIEW_LINES = 12
+
+/** Ô ảnh thu nhỏ của một trang, tỉ lệ ~3:4 như trang giấy. Khớp với màn hình thư viện. */
+private val PAGE_THUMB_WIDTH = 44.dp
+private val PAGE_THUMB_HEIGHT = 58.dp
 
 @Composable
 private fun InfoRow(label: String, value: String) {

@@ -3,11 +3,19 @@
     <!--
       Theme Android tối thiểu: chỉ dùng cho nền cửa sổ và thanh hệ thống.
       Toàn bộ màu sắc/kiểu chữ của giao diện do Compose (ScanVietTheme) quyết định.
+
+      KHÔNG khai `android:windowLightStatusBar` ở đây. Lý do: XML không biết người
+      dùng chọn chế độ Sáng hay Tối — lựa chọn đó nằm trong DataStore, đọc lúc chạy.
+      Khai cứng ở đây từng gây lỗi thật: bật chế độ tối thì nền thanh trạng thái
+      chuyển đen nhưng biểu tượng vẫn màu tối, giờ/pin gần như vô hình.
+      Việc đặt màu biểu tượng giờ do ScanVietTheme làm (xem Theme.kt).
+
+      `windowBackground` trỏ tới màu trong values-night/, nên nền cửa sổ đúng tông
+      ngay từ khung hình đầu tiên, trước cả khi Compose kịp vẽ.
     -->
     <style name="Theme.ScanViet" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/sv_window_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

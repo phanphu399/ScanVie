@@ -1,5 +1,6 @@
 package vn.scanviet.app.ui.library
 
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
@@ -30,6 +32,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,7 +53,10 @@ import vn.scanviet.app.ui.common.messageRes
 import vn.scanviet.app.ui.common.rememberPageImage
 import vn.scanviet.app.ui.components.ConfirmDialog
 import vn.scanviet.app.ui.components.EmptyState
+import vn.scanviet.app.ui.components.EmptyStateTone
+import vn.scanviet.app.ui.components.LoadingContent
 import vn.scanviet.app.ui.components.PrimaryActionButton
+import vn.scanviet.app.ui.components.SectionHeader
 
 /**
  * Màn hình 1 — Trang chủ: nút quét tài liệu, ô tìm kiếm, danh sách tài liệu đã lưu.
@@ -128,7 +134,9 @@ fun LibraryScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             when (val state = uiState) {
-                LibraryUiState.Loading -> LoadingContent()
+                LibraryUiState.Loading -> LoadingContent(
+                    label = stringResource(R.string.library_loading),
+                )
 
                 is LibraryUiState.Documents -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -216,13 +224,16 @@ private fun SearchField(
     TextField(
         value = query,
         onValueChange = onQueryChange,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp),
         singleLine = true,
         placeholder = { Text(text = stringResource(R.string.library_search_hint)) },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = stringResource(R.string.cd_search),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             )
         },
         trailingIcon = {
@@ -231,28 +242,15 @@ private fun SearchField(
                     Icon(
                         imageVector = Icons.Default.Clear,
                         contentDescription = stringResource(R.string.cd_clear_search),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     )
                 }
             }
         },
+        // Bo góc để nhẹ mắt hơn so với ô vuông mặc định. Giữ màu mặc định
+        // để tránh phụ thuộc API phiên bản Compose.
+        shape = RoundedCornerShape(22.dp),
     )
 }
 
-@Composable
-private fun LoadingContent() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(top = 48.dp),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator()
-            Text(
-                text = stringResource(R.string.library_loading),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(start = 12.dp),
-            )
-        }
-    }
-}
+

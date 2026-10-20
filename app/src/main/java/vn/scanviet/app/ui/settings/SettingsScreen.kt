@@ -130,9 +130,10 @@ fun SettingsScreen(
                         )
                     }
 
-                    // Chất lượng model chỉ có ý nghĩa với Tesseract. Hiện luôn nhưng VÔ HIỆU
-                    // khi đang chọn ML Kit, kèm giải thích — thay vì ẩn đi, vì ẩn làm người
-                    // dùng không biết tuỳ chọn này tồn tại khi họ quay lại Tesseract.
+                    // Phân tách Engine và Chất lượng bằng một đường kẻ: hai nhóm logic khác nhau
+                    // nhưng cùng thuộc "Nhận dạng chữ". Giữ trong cùng một Card để người dùng thấy
+                    // được sự liên quan, thay vì tách ra 2 Card riêng biệt.
+                    HorizontalDivider()
                     OcrChoiceHeader(
                         text = stringResource(R.string.settings_ocr_quality_label),
                         enabled = uiState.settings.ocrEngineKind == OcrEngineKind.TESSERACT,
@@ -201,7 +202,6 @@ fun SettingsScreen(
                 onCheckNow = updateViewModel::check,
                 onDownload = updateViewModel::downloadAndInstall,
                 onInstallHandled = updateViewModel::onInstallHandled,
-                modifier = Modifier.padding(top = 4.dp),
             )
 
             Spacer(modifier = Modifier.height(24.dp))

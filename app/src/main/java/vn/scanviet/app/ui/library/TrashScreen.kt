@@ -45,6 +45,8 @@ import vn.scanviet.app.ui.common.asString
 import vn.scanviet.app.ui.common.messageRes
 import vn.scanviet.app.ui.components.ConfirmDialog
 import vn.scanviet.app.ui.components.EmptyState
+import vn.scanviet.app.ui.components.EmptyStateTone
+import vn.scanviet.app.ui.components.LoadingContent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,7 +94,12 @@ fun TrashScreen(
                 .padding(horizontal = 16.dp),
         ) {
             when (val state = uiState) {
-                TrashUiState.Loading -> Spacer(modifier = Modifier.height(24.dp))
+                // Dùng cùng kiểu "vòng xoay + chữ" như màn hình thư viện thay vì để trống.
+                // Trước đây chỗ này là một `Spacer` rỗng: mở thùng rác thấy màn hình trắng
+                // trong giây lát, người dùng không biết ứng dụng đang tải hay đã hỏng.
+                TrashUiState.Loading -> LoadingContent(
+                    label = stringResource(R.string.library_loading),
+                )
 
                 TrashUiState.Empty -> EmptyState(
                     icon = Icons.Default.Delete,
@@ -104,6 +111,7 @@ fun TrashScreen(
                     icon = Icons.Default.Warning,
                     title = stringResource(R.string.library_error_title),
                     message = stringResource(state.error.messageRes()),
+                    tone = EmptyStateTone.ERROR,
                 )
 
                 is TrashUiState.Items -> LazyColumn(

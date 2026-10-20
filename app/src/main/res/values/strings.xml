@@ -15,10 +15,12 @@
     <string name="library_retry">Thử lại</string>
     <string name="library_item_pages">%1$d trang</string>
     <string name="library_item_updated">Cập nhật %1$s</string>
-    <string name="library_ocr_none">Chưa nhận dạng chữ</string>
-    <string name="library_ocr_running">Đang nhận dạng chữ</string>
-    <string name="library_ocr_done">Đã nhận dạng chữ</string>
-    <string name="library_ocr_failed">Nhận dạng chữ bị lỗi</string>
+    <!-- Nhãn ngắn cho chip trạng thái OCR trong danh sách tài liệu.
+         Cố ý ngắn (1-2 từ) để không bị xuống dòng / tràn chip. -->
+    <string name="library_ocr_none">Chưa có chữ</string>
+    <string name="library_ocr_running">Đang nhận dạng</string>
+    <string name="library_ocr_done">Đã có chữ</string>
+    <string name="library_ocr_failed">Lỗi nhận dạng</string>
 
     <!-- Thao tác chung -->
     <string name="action_open">Mở</string>
@@ -66,8 +68,8 @@
     <string name="detail_ocr_status_none">Chưa nhận dạng chữ. Bấm “Nhận dạng chữ” để tạo cả lớp chữ cho PDF.</string>
     <string name="detail_ocr_status_failed">Lần nhận dạng trước bị lỗi. Hãy thử lại.</string>
     <string name="detail_ocr_warning_pdf">PDF xuất ra sẽ KHÔNG copy được chữ nếu bạn chưa nhận dạng.</string>
-    <string name="detail_view_pages">Xem các trang</string>
     <string name="detail_open_page">Mở trang %1$d</string>
+    <string name="detail_pages_hint">Bấm một trang để xem to và phóng to được.</string>
 
     <!-- Xem ảnh toàn màn hình -->
     <string name="viewer_title">Trang %1$d/%2$d</string>

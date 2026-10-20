@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -55,6 +56,7 @@ import vn.scanviet.app.ui.common.asString
 import vn.scanviet.app.ui.common.findActivity
 import vn.scanviet.app.ui.common.messageRes
 import vn.scanviet.app.ui.components.EmptyState
+import vn.scanviet.app.ui.components.EmptyStateTone
 import vn.scanviet.app.ui.components.PrimaryActionButton
 import vn.scanviet.app.ui.components.SectionHeader
 
@@ -149,6 +151,7 @@ fun ScanScreen(
                     message = stringResource(R.string.scan_unavailable_message),
                     actionLabel = stringResource(R.string.scan_retry),
                     onAction = viewModel::onReset,
+                    tone = EmptyStateTone.ERROR,
                 )
 
                 is ScanUiState.Failed -> EmptyState(
@@ -157,6 +160,7 @@ fun ScanScreen(
                     message = stringResource(state.error.messageRes()),
                     actionLabel = stringResource(R.string.scan_retry),
                     onAction = viewModel::onReset,
+                    tone = EmptyStateTone.ERROR,
                 )
 
                 is ScanUiState.Reviewing -> ReviewContent(
@@ -350,6 +354,7 @@ private fun ReviewContent(
                 icon = Icons.Default.Warning,
                 title = stringResource(R.string.scan_no_pages_title),
                 message = stringResource(R.string.scan_no_pages_message),
+                tone = EmptyStateTone.ERROR,
             )
         } else {
             LazyColumn(
@@ -386,7 +391,13 @@ private fun ReviewContent(
             }
             PrimaryActionButton(
                 text = stringResource(R.string.action_save),
-                icon = Icons.Default.Add,
+                // KHÔNG dùng `Icons.Default.Add` (nút cộng) ở đây. Trên chính màn hình
+                // quét, nút cộng đã mang nghĩa "quét thêm trang" (xem IdleContent). Dùng
+                // lại nó cho "Lưu" khiến người dùng tưởng sẽ thêm trang thay vì lưu tài
+                // liệu — sai nghĩa. `material-icons-core` 1.7.6 không có `Save` hay
+                // `FileDownload` (đã liệt kê class trong AAR), nên `Check` là lựa chọn
+                // gần nghĩa nhất: "xong, xác nhận".
+                icon = Icons.Default.Check,
                 onClick = onSave,
                 enabled = state.canSave,
             )

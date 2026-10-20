@@ -40,6 +40,7 @@ import vn.scanviet.app.domain.image.PageImageSizes
 import vn.scanviet.app.ui.common.messageRes
 import vn.scanviet.app.ui.common.rememberPageImage
 import vn.scanviet.app.ui.components.EmptyState
+import vn.scanviet.app.ui.components.EmptyStateTone
 
 /**
  * Màn hình xem lại tài liệu đã scan.
@@ -234,6 +235,7 @@ private fun NotFoundContent(message: String, onBack: () -> Unit) {
         message = message,
         actionLabel = stringResource(R.string.action_back),
         onAction = onBack,
+        tone = EmptyStateTone.ERROR,
     )
 }
 

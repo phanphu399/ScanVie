@@ -80,6 +80,10 @@ fun DocumentRow(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                Spacer(modifier = Modifier.height(2.dp))
+                // Một dòng phụ duy nhất gộp số trang + thời gian. Trước đây là hai dòng
+                // `bodySmall` cùng cỡ cùng màu nằm liền nhau: mắt không biết dòng nào là
+                // thông tin chính, và dòng thứ ba (trạng thái chữ) trông như bị lạc.
                 Text(
                     text = stringResource(R.string.library_item_pages, document.pageCount) +
                         " · " +
@@ -89,12 +93,11 @@ fun DocumentRow(
                         ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = stringResource(document.ocrStatus.labelRes()),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Spacer(modifier = Modifier.height(4.dp))
+                OcrStatusChip(status = document.ocrStatus)
             }
 
             Box {
@@ -162,6 +165,43 @@ private fun ThumbnailBox(thumbnail: ImageBitmap?) {
             )
         }
     }
+}
+
+/**
+ * Nhãn nhỏ thể hiện trạng thái nhận dạng chữ của tài liệu.
+ *
+ * Vì sao là "chip" có màu chứ không phải thêm một dòng chữ xám: đây là thông tin người
+ * dùng cần nắm nhanh khi lướt danh sách ("tài liệu này đã có chữ chưa?"). Một dòng chữ
+ * xám thứ ba nằm cạnh hai dòng xám khác thì không đọc được nhanh. Màu làm việc đó thay
+ * cho người dùng, còn chữ giữ lại để không phụ thuộc hoàn toàn vào màu (người mù màu).
+ */
+@Composable
+private fun OcrStatusChip(status: OcrStatus) {
+    val (background, foreground) = when (status) {
+        OcrStatus.DONE -> MaterialTheme.colorScheme.primaryContainer to
+            MaterialTheme.colorScheme.onPrimaryContainer
+
+        OcrStatus.FAILED -> MaterialTheme.colorScheme.errorContainer to
+            MaterialTheme.colorScheme.onErrorContainer
+
+        // NONE và RUNNING đều là "chưa xong": dùng màu trung tính, không gây cảm giác lỗi.
+        OcrStatus.NONE, OcrStatus.RUNNING -> MaterialTheme.colorScheme.surfaceVariant to
+            MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Text(
+        text = stringResource(status.labelRes()),
+        style = MaterialTheme.typography.labelSmall,
+        color = foreground,
+        // Khoá cứng 1 dòng: nhãn dài hơn dự kiến sẽ bị cắt chứ không đẩy vỡ bố cục hàng.
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(background)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
 }
 
 internal fun OcrStatus.labelRes(): Int = when (this) {
