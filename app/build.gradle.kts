@@ -163,4 +163,9 @@ dependencies {
     testImplementation(libs.androidx.test.core.ktx)
     // `org.json` nằm trong Android framework nhưng không có trên JVM. Chỉ test cần.
     testImplementation(libs.json)
+androidTestImplementation(libs.androidx.test.ext.junit)
+androidTestImplementation(libs.androidx.test.espresso.core)
+androidTestImplementation(platform(libs.compose.bom))
+androidTestImplementation(libs.compose.ui.test.junit4)
+debugImplementation(libs.compose.ui.test.manifest)
 }
