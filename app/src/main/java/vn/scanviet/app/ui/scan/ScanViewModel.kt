@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import vn.scanviet.app.core.format.Formatters
 import vn.scanviet.app.core.time.TimeProvider
+import vn.scanviet.app.domain.image.PageImageLoader
 import vn.scanviet.app.domain.repository.SettingsRepository
 import vn.scanviet.app.domain.usecase.ImportScannedDocumentUseCase
 import vn.scanviet.app.domain.usecase.RecognizeDocumentTextUseCase
@@ -35,6 +36,8 @@ class ScanViewModel @Inject constructor(
     private val recognizeDocumentText: RecognizeDocumentTextUseCase,
     private val settingsRepository: SettingsRepository,
     private val timeProvider: TimeProvider,
+    /** Chỉ để màn hình nạp ảnh thu nhỏ cho trang đang chờ lưu; ViewModel không tự dùng. */
+    val thumbnailLoader: PageImageLoader,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ScanUiState>(ScanUiState.Idle)

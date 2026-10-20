@@ -55,3 +55,23 @@ private fun DecodedImage.toImageBitmap(): ImageBitmap {
     bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
     return bitmap.asImageBitmap()
 }
+
+/**
+ * Nạp ảnh từ một URI nội dung (ví dụ `content://...`) và trả về `ImageBitmap`.
+ */
+@Composable
+fun rememberContentImage(
+    uri: String?,
+    loader: PageImageLoader,
+    maxDimension: Int = PageImageSizes.THUMBNAIL_DIMENSION,
+): ImageBitmap? {
+    var image by remember(uri, maxDimension) { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(uri, maxDimension) {
+        image = null
+        if (uri == null) return@LaunchedEffect
+        image = loader.loadFromContentUri(uri, maxDimension)?.toImageBitmap()
+    }
+
+    return image
+}

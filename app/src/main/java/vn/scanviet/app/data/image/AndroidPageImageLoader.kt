@@ -1,7 +1,10 @@
 package vn.scanviet.app.data.image
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.annotation.VisibleForTesting
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.withContext
@@ -28,6 +31,7 @@ import vn.scanviet.app.domain.storage.DocumentFileStorage
 class AndroidPageImageLoader @Inject constructor(
     private val storage: DocumentFileStorage,
     private val dispatchers: DispatcherProvider,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context,
 ) : PageImageLoader {
 
     /**
@@ -74,7 +78,44 @@ class AndroidPageImageLoader @Inject constructor(
             }
         }
 
-    /** Chia đôi cho tới khi cả hai cạnh đều không còn vượt quá [maxDimension]. */
+    override suspend fun loadFromContentUri(uri: String, maxDimension: Int): DecodedImage? =
+        withContext(dispatchers.io) {
+            val key = CacheKey("content:$uri", maxDimension)
+            synchronized(lock) { cache[key] }?.let { return@withContext it }
+
+            val parsedUri = runCatching { Uri.parse(uri) }.getOrNull()
+                ?: return@withContext null
+
+            // Đọc bounds trước để tính inSampleSize, sau đó giải mã ở kích thước đã giảm mẫu.
+            // BitmapFactory.decodeStream với Options.inJustDecodeBounds = true đọc bounds mà
+            // không cấp phát bitmap — cùng nguyên tắc với load() từ file.
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            runCatching {
+                context.contentResolver.openInputStream(parsedUri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream, null, bounds)
+                }
+            }.getOrNull()
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withContext null
+
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, maxDimension)
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            val bitmap = runCatching {
+                context.contentResolver.openInputStream(parsedUri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream, null, options)
+                }
+            }.getOrNull() ?: return@withContext null
+
+            try {
+                val pixels = IntArray(bitmap.width * bitmap.height)
+                bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                DecodedImage(pixels = pixels, width = bitmap.width, height = bitmap.height)
+                    .also { image -> synchronized(lock) { cache[key] = image } }
+            } finally {
+                bitmap.recycle()
+            }
+        }
     private fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): Int {
         var sample = 1
         while (width / (sample * 2) >= maxDimension || height / (sample * 2) >= maxDimension) {

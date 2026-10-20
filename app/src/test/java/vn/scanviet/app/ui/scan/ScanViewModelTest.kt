@@ -39,6 +39,7 @@ import vn.scanviet.app.testing.FakeDocumentRepository
 import vn.scanviet.app.testing.FakeDocumentScannerEngine
 import vn.scanviet.app.testing.FakeMlKitOcrEngine
 import vn.scanviet.app.testing.FakeOcrEngine
+import vn.scanviet.app.testing.FakePageImageLoader
 import vn.scanviet.app.testing.FakePageImageReader
 import vn.scanviet.app.testing.FakeSettingsRepository
 import vn.scanviet.app.testing.FakeTessdataProvisioner
@@ -114,6 +115,7 @@ class ScanViewModelTest {
             ),
             settingsRepository = settings,
             timeProvider = FakeTimeProvider(),
+            thumbnailLoader = FakePageImageLoader(),
         )
     }
 

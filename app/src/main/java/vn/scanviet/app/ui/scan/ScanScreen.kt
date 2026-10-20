@@ -4,6 +4,8 @@ import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,13 +16,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -46,12 +52,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import vn.scanviet.app.domain.image.PageImageLoader
+import vn.scanviet.app.domain.image.PageImageSizes
 import vn.scanviet.app.BuildConfig
 import vn.scanviet.app.R
+import vn.scanviet.app.ui.common.rememberContentImage
+import vn.scanviet.app.ui.common.rememberPageImage
 import vn.scanviet.app.ui.common.asString
 import vn.scanviet.app.ui.common.findActivity
 import vn.scanviet.app.ui.common.messageRes
@@ -165,6 +176,7 @@ fun ScanScreen(
 
                 is ScanUiState.Reviewing -> ReviewContent(
                     state = state,
+                    thumbnailLoader = viewModel.thumbnailLoader,
                     onTitleChange = viewModel::onTitleChange,
                     onMoveUp = { index -> viewModel.onMovePage(index, index - 1) },
                     onMoveDown = { index -> viewModel.onMovePage(index, index + 1) },
@@ -324,6 +336,7 @@ private fun CenteredProgress(label: String) {
 @Composable
 private fun ReviewContent(
     state: ScanUiState.Reviewing,
+    thumbnailLoader: PageImageLoader,
     onTitleChange: (String) -> Unit,
     onMoveUp: (Int) -> Unit,
     onMoveDown: (Int) -> Unit,
@@ -362,8 +375,10 @@ private fun ReviewContent(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                itemsIndexed(items = state.pages, key = { _, page -> page.sourceUri }) { index, _ ->
+                itemsIndexed(items = state.pages, key = { _, page -> page.sourceUri }) { index, page ->
                     PendingPageRow(
+                        sourceUri = page.sourceUri,
+                        thumbnailLoader = thumbnailLoader,
                         pageNumber = index + 1,
                         pageCount = state.pages.size,
                         enabled = !state.isSaving,
@@ -414,6 +429,8 @@ private fun ReviewContent(
  */
 @Composable
 private fun PendingPageRow(
+    sourceUri: String,
+    thumbnailLoader: PageImageLoader,
     pageNumber: Int,
     pageCount: Int,
     enabled: Boolean,
@@ -421,6 +438,15 @@ private fun PendingPageRow(
     onMoveDown: () -> Unit,
     onRemove: () -> Unit,
 ) {
+    // Ảnh thu nhỏ của trang đang chờ lưu, nạp từ URI tạm của trình quét.
+    // Vì sao chỉ ở kích thước nhỏ (THUMBNAIL_DIMENSION): đây chỉ để người dùng xác nhận
+    // thứ tự và nội dung trang, không cần nhìn rõ chữ. Giữ nhẹ để cuộn mượt.
+    val thumbnail = rememberContentImage(
+        uri = sourceUri,
+        loader = thumbnailLoader,
+        maxDimension = PageImageSizes.THUMBNAIL_DIMENSION,
+    )
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -428,6 +454,34 @@ private fun PendingPageRow(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Ô ảnh thu nhỏ 48×64 dp — cùng kích thước với thumbnail trong danh sách tài liệu
+            // để người dùng quen mắt với một "ngôn ngữ hình ảnh" nhất quán.
+            Box(
+                modifier = Modifier
+                    .size(width = 48.dp, height = 64.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (thumbnail != null) {
+                    Image(
+                        bitmap = thumbnail,
+                        contentDescription = stringResource(R.string.cd_document_thumbnail),
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.List,
+                        contentDescription = stringResource(R.string.cd_document_icon),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
             Text(
                 text = stringResource(R.string.detail_page_label, pageNumber),
                 style = MaterialTheme.typography.bodyLarge,

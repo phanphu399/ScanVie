@@ -22,6 +22,17 @@ interface PageImageLoader {
      * @return ảnh đã giải mã, hoặc `null` nếu không đọc được (file thiếu, hỏng).
      */
     suspend fun load(relativePath: String, maxDimension: Int): DecodedImage?
+
+    /**
+     * Nạp ảnh từ một URI nội dung (ví dụ `content://...` do trình quét trả về), giảm mẫu
+     * sao cho cạnh dài không vượt quá [maxDimension].
+     *
+     * Vì sao cần phương thức riêng: ảnh ở bước "xem lại sau quét" chưa được sao chép vào
+     * vùng riêng của app, nên không có đường dẫn tương đối. URI là nguồn tạm thời duy nhất.
+     *
+     * @return ảnh đã giải mã, hoặc `null` nếu không đọc được.
+     */
+    suspend fun loadFromContentUri(uri: String, maxDimension: Int): DecodedImage?
 }
 
 /**
