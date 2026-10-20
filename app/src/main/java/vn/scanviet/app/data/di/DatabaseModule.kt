@@ -10,6 +10,7 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import vn.scanviet.app.data.local.ScanVietDatabase
 import vn.scanviet.app.data.local.dao.DocumentDao
+import vn.scanviet.app.data.local.dao.OcrDao
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -21,8 +22,12 @@ object DatabaseModule {
         Room.databaseBuilder(context, ScanVietDatabase::class.java, ScanVietDatabase.NAME)
             // Cố ý KHÔNG dùng fallbackToDestructiveMigration:
             // xoá dữ liệu người dùng để "chữa" lỗi schema là hành vi không chấp nhận được.
+            .addMigrations(ScanVietDatabase.MIGRATION_1_2)
             .build()
 
     @Provides
     fun provideDocumentDao(database: ScanVietDatabase): DocumentDao = database.documentDao()
+
+    @Provides
+    fun provideOcrDao(database: ScanVietDatabase): OcrDao = database.ocrDao()
 }

@@ -12,4 +12,6 @@ interface SettingsRepository {
     suspend fun setAutoOcr(enabled: Boolean)
 
     suspend fun setKeepOriginalImage(enabled: Boolean)
+
+    suspend fun setCheckForUpdates(enabled: Boolean)
 }

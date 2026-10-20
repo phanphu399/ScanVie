@@ -4,26 +4,41 @@
 
 > Tài liệu thiết kế: [`PLAN.md`](PLAN.md) (định vị, KPI, lộ trình) · [`MVP_SPEC.md`](MVP_SPEC.md) (phạm vi đã chốt) · [`ARCHITECTURE.md`](ARCHITECTURE.md) (lưu trữ, schema, module) · [`AGENTS.md`](AGENTS.md) (quy tắc kỹ thuật bắt buộc).
 
+> 🔴 **Đọc trước nếu bạn quan tâm OCR tiếng Việt:** engine đang dùng (ML Kit Text Recognition v2) **không nhận dạng được tiếng Việt có dấu**. Đây là kết luận sau khi đọc tài liệu Google chính thức và kiểm tra model trong APK đã đóng gói, không phải phỏng đoán. Xem `MVP_SPEC.md` §2.5 để biết các phương án thay thế. **Không quảng cáo "OCR tiếng Việt" cho tới khi thay engine.**
+
 ---
 
-## Trạng thái hiện tại: xong Giai đoạn 1 + Giai đoạn 2a (quét) + Giai đoạn 2b (xuất/chia sẻ PDF)
+## Trạng thái hiện tại: xong Giai đoạn 1 + 2a (quét) + 2b (xuất/chia sẻ PDF) + 3 (thư viện/xem trang/lớp chữ) + 4 (tự cập nhật)
 
 **Đã chạy được:**
 
 - Danh sách tài liệu thật từ Room, sắp xếp theo lần cập nhật mới nhất.
 - Tìm kiếm tiếng Việt **không cần gõ dấu** ("hoa don" ra "Hóa đơn điện").
+- **Ảnh thu nhỏ của trang đầu ngay trong danh sách** — tải theo lô, có bộ nhớ đệm LRU, không giải mã lại ảnh khi cuộn.
 - Chi tiết tài liệu: số trang, ngày tạo/sửa, dung lượng thật trên đĩa, cảnh báo khi thiếu file ảnh.
+- **Trình xem toàn màn hình**: chụm hai ngón để phóng to (1×–6×) không cần giải mã lại ảnh, vuốt ngang đổi trang, trạng thái zoom tách riêng theo từng trang.
 - Đổi tên tài liệu (chỉ sửa metadata, **không** đổi tên file trên đĩa).
 - Xoá mềm → **Thùng rác** → khôi phục, hoặc xoá vĩnh viễn (xoá cả file).
-- Cài đặt: chủ đề Sáng/Tối/Theo hệ thống, công tắc OCR tự động, giữ ảnh gốc, xem dung lượng đang dùng.
+- Cài đặt: chủ đề Sáng/Tối/Theo hệ thống, công tắc OCR tự động, giữ ảnh gốc, **tự kiểm tra cập nhật**, xem dung lượng đang dùng.
 - Dọn dẹp lúc mở app: xoá tài liệu trong thùng rác quá 30 ngày, xoá thư mục mồ côi, chuyển tài liệu mất hết file ảnh vào thùng rác.
 - Chủ đề Sáng/Tối, giao diện tiếng Việt, Material 3.
 - **Quét tài liệu thật** (Giai đoạn 2a): mở giao diện quét của ML Kit Document Scanner (nhận diện mép giấy, cắt phối cảnh, chỉnh màu, nhiều trang), rồi xem lại danh sách trang — chuyển trang lên/xuống, xoá trang, đặt tên — và lưu. Ảnh được **sao chép ngay** vào `filesDir/documents/<uuid>/page_XXXX.jpg` trước khi ghi Room; nếu ghi Room lỗi thì thư mục vừa tạo bị xoá sạch.
 - Tối đa **20 trang** cho một lần quét. Huỷ giữa chừng hoặc máy không có Google Play services đều có thông báo riêng, không màn hình trắng.
 - **Xuất và chia sẻ PDF** (Giai đoạn 2b): tạo PDF nhiều trang khổ **A4** (mỗi trang một tờ), rồi hoặc **lưu bản sao** vào nơi bạn chọn qua Storage Access Framework (Drive, thư mục Tải về…), hoặc **chia sẻ** qua Zalo/Gmail/Drive bằng hộp thoại chia sẻ của hệ thống. Tên file gợi ý lấy từ tên tài liệu, đã bỏ dấu và loại ký tự cấm trong tên file. Trang thiếu file ảnh làm hỏng cả lần xuất kèm báo đúng số trang — cố ý vậy, để không bao giờ có "PDF thành công nhưng thiếu trang".
 - Ảnh được vẽ **vừa khít, giữ đúng tỉ lệ, không phóng to** (phóng to chỉ làm mờ). Ảnh ngang tự đổi khổ trang thành A4 ngang. Chỉ **một trang nằm trong RAM** tại một thời điểm.
+- **Lớp chữ ẩn trong PDF** (Giai đoạn 3): mỗi trang có thể mang thêm lớp chữ **vô hình** phủ lên ảnh, để mở PDF trên máy tính có thể bôi đen copy hoặc Ctrl+F. Chữ được lưu dạng **toạ độ tỉ lệ 0–1** so với ảnh gốc, nên lớp chữ vẫn thẳng hàng dù khổ trang đổi. Xem cảnh báo về chất lượng chữ bên dưới.
+- **Nhận dạng chữ** (Giai đoạn 3): nút "Nhận dạng chữ" trong màn chi tiết. Khi xuất PDF mà tài liệu chưa nhận dạng, ứng dụng **tự chạy nhận dạng trước**. Kết quả được lưu lại nên **không bao giờ chạy lại** cùng một trang. Trang đã nhận dạng mà không có chữ nào vẫn được ghi nhận (phân biệt "trang trắng" với "trang chưa xử lý").
+- **Tự kiểm tra và cập nhật** (Giai đoạn 4): app đọc bản phát hành mới nhất từ GitHub Releases và báo trong Cài đặt; bấm "Tải và cài đặt" thì tải APK rồi **mở trình cài đặt của hệ thống** (app không tự cài). Có công tắc tắt kiểm tra tự động. Kết quả kiểm tra lưu vào DataStore. Xem cảnh báo vận hành bên dưới.
 
-**Chưa có (đúng phạm vi, không phải lỗi):** OCR tiếng Việt (Giai đoạn 3), ảnh thu nhỏ trong danh sách, lớp văn bản chọn được trong PDF (đi kèm OCR).
+**Chưa có (đúng phạm vi, không phải lỗi):** OCR tiếng Việt **có dấu** (xem cảnh báo), tự cập nhật qua Google Play.
+
+> 🔴 **Lớp chữ ẩn đã được vẽ, nhưng chất lượng chữ thì chưa đạt.** Phần kỹ thuật (vẽ chữ vô hình đúng vị trí, lưu toạ độ tỉ lệ, ghép đúng trang) đã xong và có test. Vấn đề nằm ở **engine sinh ra chữ**: ML Kit Text Recognition v2 không hỗ trợ tiếng Việt có dấu, nên chữ trong lớp ẩn sẽ **mất dấu hoặc rỗng**. Cần thay engine (`MVP_SPEC.md` §2.5) trước khi tính năng này dùng được thật.
+
+> ⚠️ **Tự cập nhật qua GitHub Releases — hai điều kiện bắt buộc, đã kiểm chứng thực nghiệm:**
+> 1. **Repo phải public.** Với repo private, GitHub trả **404** cho người không có quyền. (Đã đo: `/repos/phanphu399/ScanVie` trả 404 khi còn private, 200 sau khi public.)
+> 2. **Bản phát hành KHÔNG được đánh dấu pre-release.** Endpoint `/releases/latest` bỏ qua pre-release. (Đã đo: repo hiện chỉ có `v0.2-beta` là pre-release → `/releases/latest` trả **404**, còn `/releases` trả 200 và liệt kê được nó.)
+>
+> Nếu vi phạm một trong hai điều trên, app sẽ hiện đúng thông báo **"Không kiểm tra được bản cập nhật"** — cố ý không nói dối là "đã là bản mới nhất". Khi lên Google Play, cơ chế này phải được thay bằng luồng của Play và bỏ quyền `REQUEST_INSTALL_PACKAGES`.
 
 > ⚠️ **Chưa kiểm chứng trên thiết bị thật.** Toàn bộ luồng quét — giao diện của ML Kit, việc cấp quyền camera, việc tải công cụ quét ở lần đầu — **chưa từng chạy trên máy thật hay emulator** vì môi trường phát triển không có thiết bị. Phần kiểm thử được là phần **sau** khi trình quét trả kết quả (sao chép ảnh, ghi Room, dọn rác khi lỗi): đã có test tự động. Xem `MVP_SPEC.md` để biết việc gì còn phải kiểm tra bằng tay.
 
@@ -66,7 +81,29 @@ sdk.dir=C\:\\Users\\<tên-bạn>\\AppData\\Local\\Android\\Sdk
 
 Trên Windows dùng `gradlew.bat`. APK debug nằm ở `app/build/outputs/apk/debug/`.
 
-**Kết quả đã chạy thật (20/10/2026):** **140 unit test, 0 lỗi**. Chi tiết: `PdfFileNamesTest` 9, `FormattersTest` 9, `VnTextNormalizerTest` 8, `ContentUriDocumentOutputTargetTest` 5, `LocalDocumentFileStorageTest` 15, `DocumentStorageMaintenanceTest` 7, `OfflineDocumentRepositoryTest` 16, `CreateDocumentUseCaseTest` 7, `ExportDocumentAsPdfUseCaseTest` 11, `ImportScannedDocumentUseCaseTest` 9, `RenameDocumentUseCaseTest` 3, `RobolectricPdfLimitationTest` 1, `DocumentDetailViewModelTest` 10, `LibraryViewModelTest` 13, `ScanViewModelTest` 17.
+**Kết quả đã chạy thật (20/10/2026):** **193 unit test / 0 lỗi / 21 suite**.
+
+| Suite | Số test | Ghi chú |
+|---|---|---|
+| `ScanViewModelTest` | 17 | quét + lưu |
+| `OfflineDocumentRepositoryTest` | 16 | Room + file thật |
+| `LocalDocumentFileStorageTest` | 15 | ghi `.tmp` rồi đổi tên |
+| `VersionComparatorTest` | 13 | **so sánh phiên bản** |
+| `LibraryViewModelTest` | 13 | danh sách/tìm kiếm/xoá |
+| `ExportDocumentAsPdfUseCaseTest` | 14 | gồm **lớp chữ ẩn gắn đúng trang** |
+| `GitHubReleaseSourceTest` | 11 | **đọc JSON GitHub Releases** |
+| `RecognizeDocumentTextUseCaseTest` | 11 | **luồng nhận dạng chữ** (engine giả) |
+| `DocumentDetailViewModelTest` | — | xuất/chia sẻ |
+| `CheckForUpdateUseCaseTest` | 7 | **nghiệp vụ cập nhật** |
+| `DocumentStorageMaintenanceTest` | 7 | dọn thùng rác/mồ côi |
+| `ContentUriDocumentOutputTargetTest` | 5 | ghi đè đúng |
+| `UpdateUiStateTest` | 5 | **phần trăm tải** |
+| `ScanVietDatabaseMigrationTest` | 3 | **nâng cấp Room v1→v2** |
+| Còn lại | — | `PdfFileNamesTest`, `FormattersTest`, `VnTextNormalizerTest`, `CreateDocumentUseCaseTest`, `RenameDocumentUseCaseTest`, `RobolectricPdfLimitationTest` |
+
+Đối chiếu với lần chạy 140 test của Giai đoạn 2b: **+53 test**, đúng bằng phần thêm của Giai đoạn 3 (thư viện/xem trang/nhận dạng chữ) và Giai đoạn 4 (tự cập nhật).
+
+Một lỗi thật đã bắt được trong lần chạy này: test `VersionComparatorTest` phát hiện `VersionComparator` **im lặng coi `"v0.5.0"` là phiên bản 0**. Đã sửa **mã nguồn** (bỏ tiền tố `v`/`V` trong `parse`) chứ không sửa test cho qua — vì hậu quả của lỗi đó là ứng dụng **không bao giờ** báo có bản cập nhật, mà cũng không hề báo lỗi.
 
 Test dùng **Robolectric** (Room in-memory + `filesDir`/`cacheDir` giả) nên chạy được trên máy không có emulator. Chưa có test instrumented — sẽ bổ sung khi có thiết bị/emulator.
 
@@ -89,7 +126,18 @@ Bản release bật `isMinifyEnabled` + `isShrinkResources`. Công cụ tạo t�
 | Đối chứng: `page_%04d.jpg`, `scan_scratch`, `GmsDocumentScanningDelegateActivity` | có | có |
 | Đối chứng: chuỗi không tồn tại | không | không |
 
-Các dòng đối chứng chứng minh cách tìm này không cho kết quả dương tính giả, nên kết luận "release không còn công cụ thử nghiệm" là đáng tin. Kích thước APK: debug 12,34 MB, release 2,14 MB.
+Các dòng đối chứng chứng minh cách tìm này không cho kết quả dương tính giả, nên kết luận "release không còn công cụ thử nghiệm" là đáng tin. Kích thước APK: debug 12,34 MB, release 2,14 MB *(số của Giai đoạn 2b)*.
+
+**Cập nhật 20/10/2026 (sau Giai đoạn 3 + 4):** debug **31,15 MB**, release **20,59 MB**. APK to lên là hệ quả trực tiếp của hai quyết định có chủ đích: (a) gói **hai ABI ARM** (`arm64-v8a` + `armeabi-v7a`) thay vì tất cả — đánh đổi là **không cài được lên emulator x86/x86_64**, và (b) thêm **mô hình OCR đóng gói sẵn** cùng native lib của ML Kit. Đã kiểm chứng phần tự cập nhật **sống sót qua R8** bằng cách tìm chuỗi trong `.dex`, kèm hai chuỗi đối chứng âm:
+
+| Chuỗi cần tìm | Kết quả | Ý nghĩa |
+|---|---|---|
+| `api.github.com/repos` | có | mã nguồn tự cập nhật không bị R8 xoá |
+| `ScanVie` | có | tên repo đúng (khớp `git remote`) |
+| `scanviet-update.apk` | có | tên file APK tải về |
+| `application/vnd.android.package-archive` | có | MIME mở trình cài đặt |
+| `CAMSCANNER_NEGATIVE_CONTROL` (đối chứng âm) | không | cách tìm không cho dương tính giả |
+| `khong-bao-gio-ton-tai-xyz` (đối chứng âm) | không | như trên |
 
 Kiểm chứng thêm cho phần FileProvider chia sẻ PDF, đọc trực tiếp từ APK (không suy đoán từ mã nguồn):
 
@@ -97,8 +145,8 @@ Kiểm chứng thêm cho phần FileProvider chia sẻ PDF, đọc trực tiếp
 |---|---|---|
 | Authority khớp giữa manifest và code | `aapt2 dump xmltree --file AndroidManifest.xml` | `authorities="vn.scanviet.app.fileprovider"` — khớp `"$packageName.fileprovider"` |
 | Ứng dụng khác không tự đọc được | như trên | `exported=false`, `grantUriPermissions=true` |
-| Vùng chia sẻ chỉ mở thư mục nháp | tên entry trong APK | `res/xml/file_paths.xml` có mặt; nội dung chỉ khai báo `cache/scan_scratch/` |
-| Không xin thêm quyền | báo cáo hợp nhất manifest | chỉ có `INTERNET` + `ACCESS_NETWORK_STATE` (đi kèm ML Kit), **không** `CAMERA`, **không** quyền bộ nhớ |
+| Vùng chia sẻ chỉ mở thư mục nháp | `aapt2 dump xmltree --file res/xml/file_paths.xml` | đúng **hai** mục, cả hai đều là `cache-path`: `scan_scratch/` (PDF chia sẻ) và `updates/` (APK cập nhật). **Không** mở `filesDir` — tài liệu của người dùng vẫn kín |
+| Quyền đã khai báo | `aapt2 dump permissions` | `REQUEST_INSTALL_PACKAGES` (cho luồng tự cập nhật), `INTERNET` + `ACCESS_NETWORK_STATE` (đi kèm ML Kit), permission nội bộ của AndroidX. **Không** `CAMERA`, **không** quyền bộ nhớ |
 
 ---
 
@@ -115,12 +163,19 @@ app/src/main/java/vn/scanviet/app/
 │                                   :core:domain/storage      (DocumentFileStorage - cổng)
 │                                   :core:domain/scan         (PageImageReader - cổng)
 │                                   :core:domain/export       (PdfExporter + DocumentOutputTarget - cổng)
-├── data/         → :core:data      Room (entity/dao/database), DataStore, repository impl,
-│                                   file/LocalDocumentFileStorage, scan/, export/,
+│                                   :core:domain/ocr          (OcrEngine - cổng)
+│                                   :core:domain/update       (UpdateSource + VersionComparator - cổng)
+│                                   :core:domain/image        (PageImageLoader - cổng, trả DecodedImage)
+├── data/         → :core:data      Room (entity/dao/database + Migration 1→2), DataStore,
+│                                   repository impl, file/LocalDocumentFileStorage, scan/,
+│                                   export/, image/ (AndroidPageImageLoader + LRU cache),
 │                                   di/, dev/ (chỉ debug)
 ├── platform/     → :platform:*     scanner/ (DocumentScannerEngine + ML Kit impl + DI)
-│                                   pdf/ (PdfExporter thật + DI)
-├── ui/           → :feature:*      theme, components, common, library, scan, settings
+│                                   ocr/     (OcrEngine thật + DI)
+│                                   pdf/     (PdfExporter thật + DI)
+│                                   update/  (GitHubReleaseSource + ApkInstaller + DI)
+├── ui/           → :feature:*      theme, components, common, library, viewer, scan,
+│                                   settings, update
 └── navigation/   → :app            ScanVietRoutes + ScanVietNavHost
 ```
 
@@ -130,6 +185,7 @@ Quy tắc phụ thuộc (kiểm tra được bằng mắt qua import):
 - `ui/` không truy cập `data/` trực tiếp — chỉ qua interface trong `domain/`. Riêng thứ thuộc Android SDK không thể diễn đạt bằng domain (`DocumentScannerEngine` cần `Activity`/`IntentSender`) thì nằm ở `platform/`; `ui/` chỉ chuyển tiếp `IntentSender`/`Intent`.
 - `platform/` biết SDK cụ thể (ML Kit, `android.graphics.pdf`) nhưng **không** chứa quy tắc nghiệp vụ. Cùng một lý do như `platform/scanner`: `PdfDocument` là API Android, không diễn đạt được bằng domain, nên cổng `PdfExporter` nằm ở `domain/export/` và cài đặt thật nằm ở `platform/pdf/`.
 - `navigation/` là nơi **duy nhất** biết tất cả màn hình; các màn hình chỉ nhận callback.
+- `domain/` **không** biết Android: `PageImageLoader` trả `DecodedImage` (chỉ có `width`/`height`) chứ không trả `Bitmap`; `OcrEngine` nhận đường dẫn tương đối và trả `OcrText`; `UpdateSource`/`VersionComparator` dùng kiểu JDK thuần. Nhờ vậy thay engine OCR hay thay nguồn cập nhật **không đụng** tới Room, ViewModel hay PDF exporter.
 
 ### Luồng quét (Giai đoạn 2a)
 
@@ -185,20 +241,23 @@ Chia sẻ dùng `FileProvider` với authority `vn.scanviet.app.fileprovider`, c
 | Loại dữ liệu | Nơi lưu | Ghi chú |
 |---|---|---|
 | Ảnh trang scan | `filesDir/documents/<uuid>/page_0001.jpg` | đường dẫn **tương đối** trong database |
-| Metadata tài liệu | Room `scanviet.db` | `exportSchema = true`, schema v1 đã commit ở `app/schemas/` |
-| Cài đặt | DataStore Preferences | chủ đề, OCR tự động, giữ ảnh gốc |
+| Metadata tài liệu | Room `scanviet.db` | `exportSchema = true`, schema **v1 và v2** đã commit ở `app/schemas/` |
+| Chữ nhận dạng được | Room `ocr_pages` + `ocr_lines` (schema v2) | Toạ độ **tỉ lệ 0–1** so với ảnh gốc, nên lớp chữ không lệch khi khổ trang PDF đổi. Nâng cấp bằng `MIGRATION_1_2` tường minh — **không** `fallbackToDestructiveMigration`, dữ liệu cũ giữ nguyên |
+| Cài đặt | DataStore Preferences | chủ đề, OCR tự động, giữ ảnh gốc, **tự kiểm tra cập nhật** |
 | Vùng nháp khi scan | `cacheDir/scan_scratch/` | dọn sạch khi mở app |
 | PDF tạm để chia sẻ | `cacheDir/scan_scratch/<ten-tai-lieu>.pdf` | không lưu thêm bản trong app; do Android được phép dọn khi hết chỗ |
+| APK cập nhật tải về | `cacheDir/updates/scanviet-update.apk` | tên **cố định**, ghi đè mỗi lần tải; cache nên bị hệ thống xoá được bất cứ lúc nào — app tải lại khi cần |
 | PDF người dùng lưu | nơi người dùng chọn qua SAF | nằm **ngoài** vùng của app, app không quản lý |
 
 Không xin quyền bộ nhớ ngoài và **không** xin `CAMERA`. Cả quét (ảnh do Play services trả về), lưu PDF và chia sẻ đều không cần quyền bộ nhớ: lưu dùng SAF, chia sẻ dùng `FileProvider`.
 
 ### Quyền thực tế trong APK (đã kiểm chứng)
 
-Ứng dụng không tự khai báo quyền nào, nhưng thư viện hợp nhất thêm vào:
+Ứng dụng tự khai báo **đúng một** quyền, cộng thêm các quyền do thư viện hợp nhất vào:
 
 | Quyền | Nguồn | Ghi chú |
 |---|---|---|
+| `android.permission.REQUEST_INSTALL_PACKAGES` | **app tự khai báo** | Chỉ để mở trình cài đặt của hệ thống cho APK cập nhật. Hệ thống **vẫn** hỏi người dùng bật "cài từ nguồn không xác định" — app không tự cài. **Phải bỏ khi phát hành qua Google Play**, vì Play cấm ứng dụng tự tải và cài APK |
 | `android.permission.INTERNET` | `com.google.android.datatransport:transport-backend-cct` (phụ thuộc bắc cầu của ML Kit) | Kênh truyền số liệu của Google; cũng là thứ cho phép lần quét đầu tải công cụ quét |
 | `android.permission.ACCESS_NETWORK_STATE` | cùng nguồn | |
 | `vn.scanviet.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | AndroidX | Quyền nội bộ, `protectionLevel=signature` |
@@ -206,7 +265,75 @@ Không xin quyền bộ nhớ ngoài và **không** xin `CAMERA`. Cả quét (�
 `CAMERA` **không** cần: giao diện quét nằm trong tiến trình của Google Play services (activity `com.google.mlkit.vision.documentscanner.internal.GmsDocumentScanningDelegateActivity`, do SDK khai báo, `exported=false`) — chính Play services xin quyền camera. Đã kiểm chứng bằng cách đọc `AndroidManifest.xml` trong `play-services-mlkit-document-scanner-16.0.0.aar`: AAR đó không khai báo quyền nào.
 
 Nguồn của từng quyền tra được ở `app/build/outputs/logs/manifest-merger-debug-report.txt`.
-Không có mã nào trong `vn.scanviet.app` gọi HTTP; ảnh/PDF/văn bản OCR không được gửi đi đâu.
+
+**Mã nguồn trong `vn.scanviet.app` gọi HTTP đúng hai lần, cả hai đều là `GET` chỉ đọc và đều do người dùng chủ động:**
+
+| # | Nơi | URL | Gửi đi cái gì |
+|---|---|---|---|
+| 1 | `GitHubReleaseSource.fetchLatestRelease()` | `api.github.com/repos/phanphu399/ScanVie/releases/latest` | **Không gửi nội dung tài liệu.** Chỉ có header `Accept` và `User-Agent`. URL công khai, không có tham số nhận dạng người dùng |
+| 2 | `ApkInstaller.downloadApk()` | URL file APK trong bản phát hành | Không có. Chỉ chạy khi người dùng **bấm** "Tải và cài đặt" |
+
+Cả hai đều **tắt được**: công tắc "Tự kiểm tra bản cập nhật" trong Cài đặt chặn lần gọi #1; lần gọi #2 chỉ xảy ra khi người dùng bấm nút. Ảnh, PDF và văn bản OCR **không bao giờ** rời khỏi thiết bị.
+
+### Luồng nhận dạng chữ và lớp chữ ẩn (Giai đoạn 3)
+
+```
+DocumentDetailViewModel.onRecognizeText()  /  (tự chạy trước khi xuất PDF)
+   │
+   ▼
+RecognizeDocumentTextUseCase
+   1. lấy danh sách trang của tài liệu
+   2. bỏ qua trang ĐÃ nhận dạng (không chạy lại — tốn thời gian vô ích)
+   3. mỗi trang còn lại: OcrEngine.recognize(relativePath) -> OcrText
+        │
+        ├── platform/ocr/  (ML Kit Text Recognition v2)
+        └── test: FakeOcrEngine
+   4. ghi Room: 1 dòng ocr_pages (kèm imageWidth/imageHeight) + n dòng ocr_lines
+                 toạ độ chuẩn hoá 0..1
+   5. một trang lỗi KHÔNG làm hỏng cả tài liệu; trang không có chữ vẫn được ghi
+      (phân biệt "trang trắng" với "trang chưa xử lý")
+```
+
+Khi xuất PDF, `ExportDocumentAsPdfUseCase` đọc chữ đã lưu và chuyển thành lớp chữ **vô hình** vẽ đè lên ảnh:
+
+```
+AndroidPdfExporter.drawInvisibleTextLayer()
+   - Paint.alpha = 1   (KHÔNG dùng alpha = 0: PdfDocument sẽ BỎ QUA lệnh vẽ)
+   - textSize = chiều cao hộp / 1.3
+   - textScaleX kéo giãn vừa đúng bề rộng hộp, kẹp trong 0.05..20
+   - ghép theo pageIndex, nên trang nào thiếu chữ thì chỉ trang đó có lớp rỗng
+```
+
+Vì sao chữ phải vô hình mà không phải chữ thật: PDF giữ **ảnh gốc** làm nội dung nhìn thấy, lớp chữ chỉ phục vụ Ctrl+F và copy. Nếu vẽ chữ đè lên ảnh thì bản in ra sẽ bị chồng hai lớp chữ.
+
+### Luồng tự cập nhật (Giai đoạn 4)
+
+```
+SettingsScreen
+   ├── LaunchedEffect (nếu bật "Tự kiểm tra cập nhật") ──> UpdateViewModel.checkForUpdate()
+   └──(bấm "Kiểm tra cập nhật")─────────────────────────> UpdateViewModel.checkForUpdate()
+                                                              │
+                                          CheckForUpdateUseCase
+                                           1. UpdateSource.fetchLatestRelease()   (GET, chỉ đọc)
+                                           2. VersionComparator.isNewer(remote, BuildConfig.VERSION_NAME)
+                                              ├── có bản mới hơn -> UpdateUiState.Available
+                                              ├── bằng/không có  -> UpToDate
+                                              └── lỗi mạng/JSON  -> UpdateCheckFailedException
+                                                                    (TUYỆT ĐỐI không nói "đã mới nhất")
+                                          (bấm "Tải và cài đặt")
+                                                              │
+                                                     ApkInstaller
+                                                       1. tải cacheDir/updates/scanviet-update.apk (tên cố định)
+                                                       2. canRequestPackageInstalls()?
+                                                            ├── chưa -> mở Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES
+                                                            └── rồi -> Intent.ACTION_VIEW qua FileProvider (content://)
+```
+
+Ba điểm cố ý làm chặt, đều đã có test:
+
+1. **Lỗi mạng không bị nói dối thành "đã là bản mới nhất".** `CheckForUpdateUseCaseTest` kiểm tra đúng điều này — đây là loại lỗi khiến người dùng mãi không nhận được bản sửa.
+2. **App không tự cài APK.** Nó chỉ mở trình cài đặt của hệ thống; quyền cài vẫn do người dùng quyết định.
+3. **Một tiến trình tải tại một thời điểm.** Cờ `isDownloading` được bật **đồng bộ** trước `launch`, chặn bấm đúp làm hỏng file APK.
 
 ---
 
@@ -217,6 +344,7 @@ Không có mã nào trong `vn.scanviet.app` gọi HTTP; ảnh/PDF/văn bản OCR
 - **Không** ghi log tên tài liệu, nội dung OCR, hay đường dẫn file. Thông điệp lỗi không chứa tên tài liệu.
 - Xoá tài liệu là soft delete 30 ngày rồi mới xoá file thật.
 - Câu marketing đúng: **"Tài liệu được xử lý trên thiết bị, không tải lên máy chủ."** Không hứa "offline 100%" vì ML Kit Document Scanner có thể cần Google Play services + mạng ở lần dùng đầu.
+- **Ngoại lệ duy nhất đã biết:** hai lần gọi HTTP chỉ-đọc ở bảng trên. Cả hai **không** mang nội dung tài liệu, và cả hai đều tắt được. Khi bổ sung engine OCR đám mây (tùy chọn, xem `MVP_SPEC.md` §2.5) thì **phải** sửa mục này, thêm màn hình xác nhận rõ ràng trong app, và khai báo lại Data Safety trên Play.
 
 ---
 
@@ -227,8 +355,10 @@ Không có mã nào trong `vn.scanviet.app` gọi HTTP; ảnh/PDF/văn bản OCR
 | 1 ✅ | Nền tảng: Compose + Nav + ViewModel + Room + DataStore, quản lý tài liệu, thùng rác, tìm kiếm không dấu |
 | 2a ✅ | Quét thật bằng ML Kit Document Scanner (nhiều trang), xem lại/sắp xếp/xoá trang, copy ảnh vào app storage, dọn rác khi lỗi |
 | 2b ✅ | Xuất PDF nhiều trang + chia sẻ/lưu bản sao qua SAF |
-| 3 | OCR tiếng Việt on-device (`com.google.mlkit:text-recognition` bundled), sửa/copy/chia sẻ văn bản |
-| 4 | Trải nghiệm & hiệu năng (ảnh thu nhỏ, xuất PDF nhanh hơn, nâng cấp schema lần đầu) |
-| 5 | Phát hành: icon, screenshots, privacy policy, Data Safety, closed testing ≥14 ngày |
+| 3 ✅ | Ảnh thu nhỏ trong danh sách, trình xem toàn màn hình phóng to được, khung nhận dạng chữ + lớp chữ ẩn trong PDF, nâng Room lên schema v2 |
+| 4 ✅ | Tự kiểm tra và cập nhật qua GitHub Releases, mở trình cài đặt hệ thống |
+| 4b 🔴 | **Thay engine OCR** — ML Kit v2 không nhận dạng được tiếng Việt có dấu (`MVP_SPEC.md` §2.5). Cổng `OcrEngine` đã tách sẵn nên không đụng Room/ViewModel/PDF |
+| 5 | Trải nghiệm & hiệu năng, dọn giao diện |
+| 6 | Phát hành: icon, screenshots, privacy policy, Data Safety, closed testing ≥14 ngày |
 
 Chi tiết từng bước và tiêu chí dừng: [`MVP_SPEC.md`](MVP_SPEC.md) mục 4 và 6.

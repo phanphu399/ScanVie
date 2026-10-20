@@ -16,9 +16,26 @@ junit4 = "4.13.2"
 robolectric = "4.14.1"
 turbine = "1.2.0"
 androidxTestCore = "1.6.1"
+# `org.json` có sẵn trong Android nhưng KHÔNG có trên JVM, nên test đọc JSON của
+# GitHubReleaseSource cần bản này. Chỉ dùng cho test, không vào APK.
+json = "20240303"
 # ML Kit Document Scanner: giao diện quét + xử lý ảnh do Play services cung cấp.
 # Đã ở bản stable kể từ 16.0.0 (29/09/2025).
 mlkitDocumentScanner = "16.0.0"
+# ML Kit Text Recognition v2, bản BUNDLED (model gắn sẵn vào APK).
+# Vì sao chọn bản bundled thay vì play-services-mlkit-text-recognition: bản bundled
+# chạy được ngoại tuyến NGAY sau khi cài, không phải chờ Play services tải model về.
+# Điều này khớp với lời hứa "nhận dạng trên thiết bị" của ứng dụng. Đổi lại APK tăng
+# khoảng 4 MB — cái giá hợp lý cho một tính năng lõi không phụ thuộc mạng.
+#
+# HẠN CHẾ QUAN TRỌNG (đã kiểm chứng bằng tài liệu Google tháng 10/2026):
+# API này chỉ hỗ trợ 5 hệ chữ: Latin, Chinese, Devanagari, Japanese, Korean.
+# TIẾNG VIỆT CÓ DẤU KHÔNG NẰM TRONG DANH SÁCH ĐƯỢC HỖ TRỢ CHÍNH THỨC. Model Latin
+# đóng gói là `Latn_ctc` (xem assets/mlkit-google-ocr-models trong APK) và nó bỏ dấu
+# hoặc trả về chuỗi rỗng với văn bản tiếng Việt. KHÔNG dùng nó cho bản phát hành.
+# Cần thay bằng engine khác (Tesseract + vie.traineddata, hoặc PaddleOCR) trước khi
+# công bố tính năng nhận dạng chữ tiếng Việt.
+mlkitTextRecognition = "16.0.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -48,6 +65,9 @@ hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", ve
 # tải ở lần dùng đầu tiên (đây là lý do tuyên bố "hoạt động ngoại tuyến" phải nói rõ).
 mlkit-document-scanner = { module = "com.google.android.gms:play-services-mlkit-document-scanner", version.ref = "mlkitDocumentScanner" }
 
+# Nhận dạng chữ (OCR) hệ chữ Latin, gồm tiếng Việt. Bản bundled: model nằm sẵn trong APK.
+mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitTextRecognition" }
+
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 
@@ -55,6 +75,7 @@ junit = { module = "junit:junit", version.ref = "junit4" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 androidx-test-core-ktx = { module = "androidx.test:core-ktx", version.ref = "androidxTestCore" }
+json = { module = "org.json:json", version.ref = "json" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

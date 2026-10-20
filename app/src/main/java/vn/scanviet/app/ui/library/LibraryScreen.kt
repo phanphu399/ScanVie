@@ -47,6 +47,7 @@ import vn.scanviet.app.R
 import vn.scanviet.app.domain.model.Document
 import vn.scanviet.app.ui.common.asString
 import vn.scanviet.app.ui.common.messageRes
+import vn.scanviet.app.ui.common.rememberPageImage
 import vn.scanviet.app.ui.components.ConfirmDialog
 import vn.scanviet.app.ui.components.EmptyState
 import vn.scanviet.app.ui.components.PrimaryActionButton
@@ -134,12 +135,16 @@ fun LibraryScreen(
                     contentPadding = PaddingValues(bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(items = state.documents, key = { it.id }) { document ->
+                    items(items = state.items, key = { it.document.id }) { item ->
                         DocumentRow(
-                            document = document,
-                            onOpen = { onOpenDocument(document.id) },
-                            onRename = { documentToRename = document },
-                            onDelete = { documentToTrash = document },
+                            document = item.document,
+                            thumbnail = rememberPageImage(
+                                relativePath = item.firstPagePath,
+                                loader = viewModel.thumbnailLoader,
+                            ),
+                            onOpen = { onOpenDocument(item.document.id) },
+                            onRename = { documentToRename = item.document },
+                            onDelete = { documentToTrash = item.document },
                         )
                     }
                 }

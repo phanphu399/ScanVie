@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import vn.scanviet.app.core.DispatcherProvider
@@ -12,7 +13,10 @@ import vn.scanviet.app.core.time.TimeProvider
 import vn.scanviet.app.domain.storage.DocumentFileStorage
 import vn.scanviet.app.data.local.ScanVietDatabase
 import vn.scanviet.app.data.local.dao.DocumentDao
+import vn.scanviet.app.data.local.dao.OcrDao
 import vn.scanviet.app.data.local.entity.DocumentEntity
+import vn.scanviet.app.data.local.entity.OcrLineEntity
+import vn.scanviet.app.data.local.entity.OcrPageEntity
 import vn.scanviet.app.data.local.entity.PageEntity
 import vn.scanviet.app.data.local.pageIdOf
 import vn.scanviet.app.data.local.toDomain
@@ -21,12 +25,15 @@ import vn.scanviet.app.domain.model.Document
 import vn.scanviet.app.domain.model.DocumentPage
 import vn.scanviet.app.domain.model.NewDocumentPage
 import vn.scanviet.app.domain.model.OcrStatus
+import vn.scanviet.app.domain.model.OcrText
+import vn.scanviet.app.domain.model.StoredOcrLine
 import vn.scanviet.app.domain.repository.DocumentRepository
 
 @Singleton
 class OfflineDocumentRepository @Inject constructor(
     private val database: ScanVietDatabase,
     private val documentDao: DocumentDao,
+    private val ocrDao: OcrDao,
     private val fileStorage: DocumentFileStorage,
     private val timeProvider: TimeProvider,
     private val dispatchers: DispatcherProvider,
@@ -45,6 +52,51 @@ class OfflineDocumentRepository @Inject constructor(
     override fun observePages(documentId: String): Flow<List<DocumentPage>> =
         documentDao.observePages(documentId).map { entities -> entities.map { it.toDomain() } }
 
+    override fun observeOcrText(documentId: String): Flow<List<OcrText>> = combine(
+        ocrDao.observePages(documentId),
+        ocrDao.observeLines(documentId),
+    ) { pages, lines -> pages.map { page -> page.toDomain(lines) } }
+
+    override suspend fun setOcrStatus(documentId: String, status: OcrStatus) =
+        withContext(dispatchers.io) {
+            val affected = documentDao.updateOcrStatus(documentId, status.name)
+            if (affected == 0) throw DocumentNotFoundException(documentId)
+        }
+
+    override suspend fun replaceOcrText(documentId: String, pages: List<OcrText>) =
+        withContext(dispatchers.io) {
+            val pageEntities = pages.map { page ->
+                OcrPageEntity(
+                    documentId = documentId,
+                    pageIndex = page.pageIndex,
+                    imageWidth = page.imageWidth,
+                    imageHeight = page.imageHeight,
+                )
+            }
+            val lineEntities = pages.flatMap { page ->
+                page.lines.mapIndexed { index, line ->
+                    OcrLineEntity(
+                        documentId = documentId,
+                        pageIndex = page.pageIndex,
+                        lineIndex = index,
+                        text = line.text,
+                        left = line.left,
+                        top = line.top,
+                        right = line.right,
+                        bottom = line.bottom,
+                    )
+                }
+            }
+            // Xoá trước, ghi sau, trong CÙNG một transaction: nếu ghi lỗi giữa chừng,
+            // dữ liệu cũ vẫn còn nguyên thay vì bị xoá dở dang.
+            database.withTransaction {
+                ocrDao.deleteLines(documentId)
+                ocrDao.deletePages(documentId)
+                ocrDao.insertPages(pageEntities)
+                ocrDao.insertLines(lineEntities)
+            }
+        }
+
     override fun observeActiveSizeBytes(): Flow<Long> = documentDao.observeActiveSizeBytes()
 
     override suspend fun getDocument(documentId: String): Document? = withContext(dispatchers.io) {
@@ -58,6 +110,15 @@ class OfflineDocumentRepository @Inject constructor(
     override suspend fun getPages(documentId: String): List<DocumentPage> = withContext(dispatchers.io) {
         documentDao.getPages(documentId).map { it.toDomain() }
     }
+
+    override suspend fun firstPagePaths(documentIds: List<String>): Map<String, String> =
+        withContext(dispatchers.io) {
+            if (documentIds.isEmpty()) return@withContext emptyMap()
+            // Room giới hạn số tham số trong câu `IN`; chia lô để an toàn với danh sách dài.
+            documentIds.chunked(SQL_VARIABLE_CHUNK)
+                .flatMap { chunk -> documentDao.getFirstPages(chunk) }
+                .associate { page -> page.documentId to page.imageFile }
+        }
 
     override suspend fun getAllDocumentIds(): Set<String> = withContext(dispatchers.io) {
         documentDao.getAllIds().toSet()
@@ -127,8 +188,11 @@ class OfflineDocumentRepository @Inject constructor(
         if (affected == 0) throw DocumentNotFoundException(documentId)
     }
 
-    override suspend fun countMissingPageFiles(documentId: String): Int = withContext(dispatchers.io) {
-        documentDao.getPages(documentId).count { page -> !fileStorage.exists(page.imageFile) }
+    override suspend fun missingPageIndices(documentId: String): Set<Int> = withContext(dispatchers.io) {
+        documentDao.getPages(documentId)
+            .filter { page -> !fileStorage.exists(page.imageFile) }
+            .map { page -> page.pageIndex }
+            .toSet()
     }
 
     override suspend fun deleteForever(documentId: String) {
@@ -151,5 +215,13 @@ class OfflineDocumentRepository @Inject constructor(
             runCatching { fileStorage.deleteDocumentDirectory(expiredDocument.id) }
         }
         expired.size
+    }
+
+    private companion object {
+        /**
+         * SQLite giới hạn số tham số của một câu lệnh (mặc định 999). Chia lô 500 để chừa
+         * chỗ cho các tham số khác và không bao giờ chạm trần, kể cả với danh sách lớn.
+         */
+        const val SQL_VARIABLE_CHUNK = 500
     }
 }

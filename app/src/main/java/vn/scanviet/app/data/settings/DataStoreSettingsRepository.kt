@@ -31,6 +31,7 @@ class DataStoreSettingsRepository @Inject constructor(
                 theme = preferences[Keys.THEME].toThemePreference(),
                 autoOcr = preferences[Keys.AUTO_OCR] ?: DEFAULT_AUTO_OCR,
                 keepOriginalImage = preferences[Keys.KEEP_ORIGINAL] ?: DEFAULT_KEEP_ORIGINAL,
+                checkForUpdates = preferences[Keys.CHECK_UPDATES] ?: DEFAULT_CHECK_UPDATES,
             )
         }
 
@@ -46,6 +47,10 @@ class DataStoreSettingsRepository @Inject constructor(
         dataStore.edit { preferences -> preferences[Keys.KEEP_ORIGINAL] = enabled }
     }
 
+    override suspend fun setCheckForUpdates(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[Keys.CHECK_UPDATES] = enabled }
+    }
+
     private fun String?.toThemePreference(): ThemePreference =
         ThemePreference.entries.firstOrNull { it.name == this } ?: ThemePreference.SYSTEM
 
@@ -53,10 +58,12 @@ class DataStoreSettingsRepository @Inject constructor(
         val THEME = stringPreferencesKey("theme")
         val AUTO_OCR = booleanPreferencesKey("auto_ocr")
         val KEEP_ORIGINAL = booleanPreferencesKey("keep_original_image")
+        val CHECK_UPDATES = booleanPreferencesKey("check_for_updates")
     }
 
     private companion object {
         const val DEFAULT_AUTO_OCR = true
         const val DEFAULT_KEEP_ORIGINAL = false
+        const val DEFAULT_CHECK_UPDATES = true
     }
 }

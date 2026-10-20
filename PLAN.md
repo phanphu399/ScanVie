@@ -1,6 +1,8 @@
 # Kế hoạch xây dựng app Scan tài liệu Android (Kotlin, ngân sách ~0)
 
 > Mục tiêu: app quét tài liệu **nhanh – tiện – dễ dùng**, khác biệt bằng **chạy hoàn toàn offline (riêng tư)**, **OCR tiếng Việt tốt**, và **miễn phí thực sự**. Xuất bản lên Google Play.
+>
+> 🔴 **Đọc trước (20/10/2026):** trụ cột *"OCR tiếng Việt tốt"* **chưa đạt** — engine đang dùng không hỗ trợ tiếng Việt có dấu. Xem Giai đoạn 3 bên dưới và `MVP_SPEC.md` §2.5. Mọi tuyên bố marketing dựa trên trụ cột này phải hoãn lại cho tới khi thay engine xong.
 
 ---
 
@@ -66,7 +68,7 @@ Grayscale/B&W/Đảo màu) → sharpen + denoise → lưu JPG (quality 85, EXIF 
 | UI | Jetpack Compose + Material 3 | Nhanh để viết, hiện đại, ít boilerplate |
 | Camera | **CameraX** (camera2, lifecycle, view 1.4+) | API ổn định, auto-capture tiện |
 | Detect & filter | **OpenCV Android SDK** (org.opencv:opencv) | Edge detection + perspective transform tốt nhất on-device, free Apache-2.0 |
-| OCR (bundled — nằm trong APK, offline hoàn toàn), hỗ trợ tiếng Việt | **ML Kit Text Recognition v2** (`com.google.mlkit:text-recognition`) | Hỗ trợ dấu tiếng Việt, on-device, miễn phí, nhẹ. **Không** tồn tại artifact `text-recognition-latin` (kiểm tra 404 ngày 19/10/2026) |
+| OCR (bundled — nằm trong APK, chạy ngoại tuyến), hỗ trợ tiếng Việt | ~~**ML Kit Text Recognition v2** (`com.google.mlkit:text-recognition`)~~ 🔴 **KHÔNG DÙNG ĐƯỢC** | Dòng này từng ghi *"Hỗ trợ dấu tiếng Việt"* — **SAI**. Kiểm tra 20/10/2026: Text Recognition v2 chỉ có 5 hệ chữ (Latin, Chinese, Devanagari, Japanese, Korean), **không có tiếng Việt**; model thật trong APK là `Latn_ctc` và nó bỏ dấu. Cần **thay engine** — xem `MVP_SPEC.md` §2.5. (`text-recognition-latin` cũng không tồn tại — kiểm tra 404 ngày 19/10/2026.) |
 | PDF | `androidx.pdf` (PdfRenderer mới) + **pdfbox-android** (add text layer ẩn) | Xuất PDF có thể tìm kiếm được chữ VN |
 | Room / DataStore | androidx.room, preferences-datastore | Metadata docs, settings |
 | DI / Async | Hilt, Coroutines, Flow, WorkManager | Chuẩn Android |
@@ -106,6 +108,23 @@ Grayscale/B&W/Đảo màu) → sharpen + denoise → lưu JPG (quality 85, EXIF 
 4. Xuất PDF có text layer ẩn (Ctrl+F tìm được).
 5. **Deliverable:** quét 1 trang A4 → copy được đoạn văn VN chính xác.
 
+> 🔴 **Trạng thái (20/10/2026) — ĐỌC KỸ, ĐÂY LÀ ĐIỂM HỤT LỚN NHẤT CỦA KẾ HOẠCH.**
+>
+> Mục 1, 4 và một phần 3 **đã code xong** (lưu chữ theo dòng + toạ độ chuẩn hoá vào Room v2, vẽ lớp chữ ẩn vào PDF, nút "Nhận dạng chữ", tự nhận dạng trước khi xuất PDF). Mục 2 (OCR nền bằng WorkManager) **chưa làm** — OCR hiện chạy trong lúc màn hình đang mở.
+>
+> **Nhưng mục 5 — "copy được đoạn văn VN chính xác" — KHÔNG ĐẠT, và không thể đạt bằng engine đang dùng.** ML Kit Text Recognition v2 chỉ hỗ trợ 5 hệ chữ (Latin, Chinese, Devanagari, Japanese, Korean); **không có tiếng Việt**. Mô hình đóng gói thật trong APK là `Latn_ctc` — đã kiểm chứng bằng cách đọc trực tiếp file trong APK release. Nó bỏ dấu hoặc trả chuỗi rỗng.
+>
+> Dòng ở §2.3 của tài liệu này từng ghi *"Hỗ trợ dấu tiếng Việt"* — **dòng đó SAI và đã được đính chính**. Đây là lỗi do chọn thư viện trước khi kiểm tra tài liệu chính thức của Google.
+>
+> **Việc phải làm (Giai đoạn 3b):** thay engine OCR. Xem `MVP_SPEC.md` §2.5 để so sánh Tesseract + `vie.traineddata` (offline, miễn phí, ưu tiên) và PaddleOCR/ONNX (chất lượng cao hơn), cùng Cloud Vision (tùy chọn có cảnh báo, cần người dùng tự bật). Cổng `OcrEngine` đã tách sẵn nên **không phải sửa** Room, ViewModel hay PDF exporter.
+
+### Giai đoạn 3b — Thay engine OCR (Tuần 6–7, làm trước khi phát hành)
+1. Cài Tesseract + `vie.traineddata` sau cổng `OcrEngine` hiện có (chỉ sửa `platform/ocr/`).
+2. Thêm cột `ocrEngineVersion` + migration v2→v3 để biết trang nào cần re-OCR.
+3. Dựng bộ ≥20 ảnh tài liệu in tiếng Việt thật, đo tỉ lệ dòng đọc đúng (mục tiêu ≥90%).
+4. Chỉ sau khi đạt mục 3 mới bật "OCR tiếng Việt" trong mô tả Play.
+5. **Deliverable:** PDF xuất ra, copy trên máy tính ra **đúng dấu tiếng Việt**.
+
 ### Giai đoạn 4 — Trải nghiệm & hiệu năng (Tuần 7) ★ "nhanh & dễ dùng"
 1. Auto-capture: giữ máy yên 0.5s → tự chụp.
 2. Baseline Profile + Macrobenchmark (R8 full mode, profile installer).
@@ -113,12 +132,31 @@ Grayscale/B&W/Đảo màu) → sharpen + denoise → lưu JPG (quality 85, EXIF 
 4. Onboarding 3 màn, empty states, dark mode, accessibility (content descriptions).
 5. **Deliverable:** benchmark ghi lại thời gian; cold start < 1.5s trên Snapdragon 6xx.
 
+> **Đã làm trước một phần (20/10/2026):** mục 3 **đã xong** cho ảnh (`AndroidPageImageLoader` giải mã theo `inSampleSize` theo kích thước đích, kèm **bộ nhớ đệm LRU**), và `PageImageLoader.load(relativePath, maxDimension)` chỉ có hai mức được dùng: 320 px cho ảnh thu nhỏ trong danh sách, 2048 px cho trình xem toàn màn hình. Nhờ vậy cuộn danh sách không giải mã lại ảnh, và zoom không làm lại từ đầu. Thumbnail **không** ghi ra đĩa (không có thư mục `thumbs/`) — cache trong RAM rẻ hơn và tự dọn.
+>
+> Còn lại của mục 4: giao diện "nhìn chưa đẹp lắm" là phản hồi thật của chủ dự án, **chưa được đặt phạm vi cụ thể**. Cần chốt danh sách việc trước khi làm.
+>
+> Auto-capture (mục 1) có thể **không làm được** trong MVP: giao diện chụp nằm trong ML Kit Document Scanner, không can thiệp được vào luồng chụp của nó.
+
+### Giai đoạn 4b — Tự cập nhật (đã xong, 20/10/2026)
+1. Đọc bản phát hành mới nhất từ GitHub Releases (`/releases/latest`), so phiên bản bằng số.
+2. Thông báo trong Cài đặt, có công tắc tắt kiểm tra tự động.
+3. Tải APK vào `cacheDir/updates/` rồi **mở trình cài đặt của hệ thống** (app không tự cài).
+4. Lỗi mạng → thông báo "không kiểm tra được", **tuyệt đối không** nói dối là "đã mới nhất".
+
+> **Hai điều kiện vận hành, đã kiểm chứng bằng HTTP:** repo phải **public** (private → 404), và bản phát hành **không được tick pre-release** (`/releases/latest` bỏ qua pre-release → 404). Xem `ARCHITECTURE.md` §5c.
+>
+> **Khi lên Google Play, cơ chế này PHẢI bị gỡ** (Play cấm tự tải và cài APK): xoá quyền `REQUEST_INSTALL_PACKAGES`, xoá `platform/update/` và `ui/update/`, thay bằng Play In-App Updates.
+
 ### Giai đoạn 5 — Phát hành (Tuần 8)
 1. Unit test cho UseCase + image pipeline (so sánh pixel trên ảnh fixture).
 2. Screenshot test (Roborazzi/Paparazzi) cho các màn hình chính.
 3. Chạy closed testing 14 ngày theo chính sách Play (bắt buộc với dev mới, ≥12 tester).
 4. Xin 5–10 review đầu tiên (bạn bè, nhóm Facebook "sinh viên", group kế toán).
 5. **Deliverable:** bản production, listing tiếng Việt + Anh, screenshots đẹp.
+
+> **Đã làm trước (20/10/2026):** mục 1 một phần — 193 unit test / 0 lỗi / 21 suite, đã chạy thật. Nhưng **chưa có test instrumented nào**; đây là lỗ hổng lớn nhất còn lại, vì mọi thứ phụ thuộc giao diện hệ thống (trình quét ML Kit, trình cài đặt APK, SAF) hiện chỉ kiểm được bằng tay.
+> **Trước khi phát hành bắt buộc:** dùng bản release **đã ký** (hiện APK release chưa ký, chỉ APK debug là cài được), và kiểm tra tên "ScanViet" trên Play + thương hiệu.
 
 ### Sau MVP (Backlog, chỉ làm khi có data)
 - Scan sổ dài / quét hàng loạt từ gallery, chữ ký số, điền form PDF.
@@ -129,14 +167,24 @@ Grayscale/B&W/Đảo màu) → sharpen + denoise → lưu JPG (quality 85, EXIF 
 
 ## 4. Kiểm thử
 
+> **Trạng thái thật (20/10/2026):** đã chạy **193 unit test / 0 lỗi / 21 suite** (`./gradlew :app:testDebugUnitTest`), cộng `assembleDebug` + `assembleRelease` xanh. **Chưa có test instrumented và chưa có screenshot test.** Bảng dưới là *công cụ dự định*, không phải đã dùng hết.
+
 | Loại | Công cụ | Tập trung |
 |---|---|---|
-| Unit test | JUnit5 + MockK + Turbine | UseCase, ViewModel, OCR text post-processing |
+| Unit test | JUnit4 + Robolectric (đang dùng thật) | UseCase, ViewModel, Room migration, repository, file storage |
 | Image pipeline | JUnit + ảnh fixture trong `androidTest` | Detect đúng 4 góc, filter không lỗi màu, crop đúng tỉ lệ |
 | UI/Screenshot | Roborazzi | 20 màn hình, light/dark |
 | Performance | Macrobenchmark + Baseline Profile | Cold start, thời gian scan 1 trang |
 | Thực địa | Dogfooding + 10 tester thật | Máy yếu (RAM 3GB), ảnh thiếu sáng, giấy vàng, ảnh nghiêng mạnh |
 | Phân bổ | Firebase Test Lab free tier? → không free; thay bằng 3–5 máy ảo AVD + máy thật | Độ phủ màn hình/Android version |
+
+**Ba điều bộ test hiện tại KHÔNG chứng minh được** (ghi rõ để không ai tưởng nhầm là đã kiểm thử):
+
+1. **Chất lượng nhận dạng chữ tiếng Việt** — `RecognizeDocumentTextUseCaseTest` dùng engine **giả**; nó chứng minh luồng nghiệp vụ, không chứng minh chất lượng.
+2. **Chất lượng file PDF** — Robolectric không chạy nổi `android.graphics.pdf.PdfDocument` (`RobolectricPdfLimitationTest` ghi lại bằng chứng). Kể cả **lớp chữ ẩn có copy được bằng Ctrl+F hay không** cũng chỉ biết được khi mở file trên máy tính.
+3. **Mọi thứ qua giao diện hệ thống** — trình quét ML Kit (là Activity của Play services), trình cài đặt APK, SAF, quyền cài từ nguồn không xác định, và toàn bộ bố cục/giao diện.
+
+Danh sách kiểm tra tay đầy đủ (28 mục): `MVP_SPEC.md` §6.3.
 | Release gate | CI: lint + test + benchmark threshold; Play Vitals theo dõi sau phát hành | ANR < 0.47%, crash < 1.09% (ngưỡng Play) |
 
 ---
@@ -174,11 +222,16 @@ Grayscale/B&W/Đảo màu) → sharpen + denoise → lưu JPG (quality 85, EXIF 
 | Rủi ro | Xử lý |
 |---|---|
 | OpenCV nặng (~độ lớn APK) | Chỉ include arm64-v8a; dùng app bundle (Play auto-tối ưu), hoặc tách `:core-imageproc` thành dynamic feature |
-| OCR VN sai trên ảnh tối/nghiêng | Preprocess tốt hơn (deskew + auto-contrast + denoise) — đo bằng bộ 200 ảnh fixture |
+| **🔴 ML Kit v2 KHÔNG nhận dạng được tiếng Việt có dấu — rủi ro đã THÀNH HIỆN THỰC (20/10/2026)** | Phải **thay engine** (Giai đoạn 3b). Không sửa được bằng cấu hình. Trong lúc chờ: **không** quảng cáo "OCR tiếng Việt", **không** đưa vào từ khoá Play. Xem `MVP_SPEC.md` §2.5 |
+| OCR VN sai trên ảnh tối/nghiêng | Preprocess tốt hơn (deskew + auto-contrast + denoise) — đo bằng bộ 200 ảnh fixture. **Lưu ý thứ tự: sửa engine trước, tinh chỉnh ảnh sau** — tinh chỉnh ảnh không cứu được engine không hỗ trợ hệ chữ |
+| **Tự cập nhật im lặng không báo** | Đã kiểm chứng thực nghiệm: repo **private** → 404; bản **pre-release** → `/releases/latest` trả 404. Bản phát hành phải là **bản chính thức, không tick pre-release**, trên repo **public**. Lỗi mạng được xử lý thành "không kiểm tra được", **không** nói dối là "đã mới nhất" |
+| **Tự cập nhật bị Play cấm** | Khi phát hành qua Play **phải** gỡ `REQUEST_INSTALL_PACKAGES` và `platform/update/`; thay bằng Play In-App Updates. Nguồn cập nhật đã nằm sau cổng `UpdateSource` nên đổi kênh chỉ là đổi cài đặt |
 | Chậm trên máy yếu | Giảm resolution cho bước detect (1600px), chạy pipeline ở background, benchmark ngưỡng rõ ràng |
 | Bị Play reject (chính sách camera/permission) | Xin permission đúng lúc (runtime), Privacy Policy miễn phí via GitHub Pages, Data safety form khai trung thực "không thu thập dữ liệu" |
 | Dev account mới bị yêu cầu closed testing 12 tester/14 ngày | Chuẩn bị sẵn 12 tester thật từ hôm đầu; dùng Google Groups để phân phối |
 | Burnout / chậm tiến độ | Giữ scope MVP sắt đá: không cloud, không tính năng thừa, mọi thứ khác vào backlog |
+| **Không có test instrumented nào** | Mọi thứ phụ thuộc giao diện hệ thống (trình quét ML Kit, trình cài đặt APK, SAF, quyền cài từ nguồn không xác định) hiện **chỉ kiểm được bằng tay**. Cần bổ sung khi có thiết bị/emulator — AGENTS.md yêu cầu |
+| **APK release chưa ký** | Hiện chỉ APK **debug** cài được. Trước khi phát hành phải tạo keystore và ký bản release; mất keystore là **không thể** cập nhật app trên Play nữa |
 
 ---
 

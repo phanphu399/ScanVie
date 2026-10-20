@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,15 +40,18 @@ import vn.scanviet.app.R
 import vn.scanviet.app.core.format.Formatters
 import vn.scanviet.app.domain.model.ThemePreference
 import vn.scanviet.app.ui.components.SectionHeader
-
+import vn.scanviet.app.ui.update.UpdateSection
+import vn.scanviet.app.ui.update.UpdateViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenTrash: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
+    updateViewModel: UpdateViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val updateState by updateViewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -155,8 +159,25 @@ fun SettingsScreen(
                 }
             }
 
+            UpdateSection(
+                state = updateState,
+                autoCheckEnabled = uiState.settings.checkForUpdates,
+                onAutoCheckChange = viewModel::onCheckForUpdatesChange,
+                onCheckNow = updateViewModel::check,
+                onDownload = updateViewModel::downloadAndInstall,
+                onInstallHandled = updateViewModel::onInstallHandled,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    // Tự kiểm tra khi mở màn hình Cài đặt, nhưng chỉ khi người dùng còn bật tính năng này.
+    // Dùng LaunchedEffect với khoá là lựa chọn hiện tại: bật lại trong lúc đang ở màn hình
+    // cũng kích hoạt kiểm tra ngay, còn tắt thì không gọi mạng.
+    LaunchedEffect(uiState.settings.checkForUpdates) {
+        if (uiState.settings.checkForUpdates) updateViewModel.check()
     }
 }
 

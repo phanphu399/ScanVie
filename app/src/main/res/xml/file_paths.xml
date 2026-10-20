@@ -8,9 +8,15 @@
 
   `cache/scan_scratch/` là nơi `DocumentFileStorage.createScratchFile` tạo file PDF tạm để
   chia sẻ, và nó bị dọn trong `cleanScratchSpace()`.
+
+  `cache/updates/` là nơi file APK cập nhật được tải về trước khi mở trình cài đặt của hệ
+  thống. Cũng nằm trong cache vì file này chỉ dùng một lần và phải bị dọn khi không cần nữa.
 -->
 <paths>
     <cache-path
         name="scan_scratch"
         path="scan_scratch/" />
+    <cache-path
+        name="updates"
+        path="updates/" />
 </paths>

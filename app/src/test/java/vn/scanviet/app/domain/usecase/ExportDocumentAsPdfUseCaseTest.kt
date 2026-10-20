@@ -19,6 +19,8 @@ import vn.scanviet.app.domain.EmptyDocumentException
 import vn.scanviet.app.domain.PageImageMissingException
 import vn.scanviet.app.domain.export.PdfOutputTarget
 import vn.scanviet.app.domain.model.NewDocumentPage
+import vn.scanviet.app.domain.model.OcrText
+import vn.scanviet.app.domain.model.StoredOcrLine
 import vn.scanviet.app.domain.storage.DocumentFileStorage
 import vn.scanviet.app.testing.FakeDocumentOutputTarget
 import vn.scanviet.app.testing.FakeDocumentRepository
@@ -188,6 +190,55 @@ class ExportDocumentAsPdfUseCaseTest {
 
         assertEquals(target, output.lastTarget)
     }
+
+    @Test
+    fun `chữ đã nhận dạng được ghép vào đúng trang theo số trang`() = runTest {
+        seedDocument(pageCount = 2)
+        repository.seedOcrText(
+            DOC_ID,
+            listOf(
+                ocrPage(pageIndex = 1, text = "Trang một"),
+                ocrPage(pageIndex = 2, text = "Trang hai"),
+            ),
+        )
+
+        useCase(DOC_ID, TARGET)
+
+        val sources = exporter.lastPages()
+        assertEquals(2, sources.size)
+        // Khớp chữ với ảnh: gán nhầm chữ sang trang khác sẽ khiến người dùng copy ra nội
+        // dung không thuộc trang đó — lỗi rất khó phát hiện bằng mắt.
+        assertEquals("Trang một", sources[0].textLines.single().text)
+        assertEquals("Trang hai", sources[1].textLines.single().text)
+        assertEquals(PAGE_ONE, sources[0].imageFile.name)
+        assertEquals(PAGE_TWO, sources[1].imageFile.name)
+    }
+
+    @Test
+    fun `trang chưa nhận dạng vẫn xuất được với lớp chữ rỗng`() = runTest {
+        seedDocument(pageCount = 2)
+        // Chỉ trang 1 được nhận dạng: trang 2 chưa chạy OCR.
+        repository.seedOcrText(DOC_ID, listOf(ocrPage(pageIndex = 1, text = "Chỉ trang này")))
+
+        useCase(DOC_ID, TARGET)
+
+        val sources = exporter.lastPages()
+        assertEquals("Chỉ trang này", sources[0].textLines.single().text)
+        // Xuất PDF không được phụ thuộc vào việc OCR đã chạy: người dùng có quyền chỉ muốn
+        // lưu ảnh scan.
+        assertTrue(sources[1].textLines.isEmpty())
+    }
+
+    /** Một trang OCR đã lưu, đủ để kiểm tra việc ghép chữ vào đúng trang. */
+    private fun ocrPage(pageIndex: Int, text: String) = OcrText(
+        documentId = DOC_ID,
+        pageIndex = pageIndex,
+        lines = listOf(
+            StoredOcrLine(text = text, left = 0.1f, top = 0.2f, right = 0.6f, bottom = 0.25f),
+        ),
+        imageWidth = 1240,
+        imageHeight = 1754,
+    )
 
     /** Tạo tài liệu thật trong database giả, kèm file ảnh thật trên đĩa. */
     private suspend fun seedDocument(

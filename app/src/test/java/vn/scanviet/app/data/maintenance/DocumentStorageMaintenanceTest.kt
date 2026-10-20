@@ -53,6 +53,7 @@ class DocumentStorageMaintenanceTest {
         repository = OfflineDocumentRepository(
             database = database,
             documentDao = database.documentDao(),
+            ocrDao = database.ocrDao(),
             fileStorage = storage,
             timeProvider = timeProvider,
             dispatchers = dispatchers,

@@ -12,6 +12,7 @@ import vn.scanviet.app.ui.library.LibraryScreen
 import vn.scanviet.app.ui.library.TrashScreen
 import vn.scanviet.app.ui.scan.ScanScreen
 import vn.scanviet.app.ui.settings.SettingsScreen
+import vn.scanviet.app.ui.viewer.DocumentViewerScreen
 
 /**
  * Nơi duy nhất biết về tất cả màn hình.
@@ -66,7 +67,32 @@ fun ScanVietNavHost(
                 navArgument(ScanVietRoutes.ARG_DOCUMENT_ID) { type = NavType.StringType },
             ),
         ) {
-            DocumentDetailScreen(onBack = { navController.popBackStack() })
+            DocumentDetailScreen(
+                onBack = { navController.popBackStack() },
+                onOpenPage = { pageIndex ->
+                    val documentId = navController.currentBackStackEntry
+                        // Tham số nằm ở chính màn hình chi tiết đang đứng trên đỉnh stack.
+                        ?.arguments?.getString(ScanVietRoutes.ARG_DOCUMENT_ID)
+                    if (documentId != null) {
+                        navController.navigate(
+                            ScanVietRoutes.documentViewer(documentId, pageIndex),
+                        )
+                    }
+                },
+            )
+        }
+
+        composable(
+            route = ScanVietRoutes.DOCUMENT_VIEWER,
+            arguments = listOf(
+                navArgument(ScanVietRoutes.ARG_DOCUMENT_ID) { type = NavType.StringType },
+                navArgument(ScanVietRoutes.ARG_PAGE_INDEX) {
+                    type = NavType.IntType
+                    defaultValue = 1
+                },
+            ),
+        ) {
+            DocumentViewerScreen(onBack = { navController.popBackStack() })
         }
     }
 }

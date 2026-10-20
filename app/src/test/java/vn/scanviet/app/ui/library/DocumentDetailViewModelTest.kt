@@ -26,10 +26,13 @@ import vn.scanviet.app.data.file.LocalDocumentFileStorage
 import vn.scanviet.app.domain.model.NewDocumentPage
 import vn.scanviet.app.domain.storage.DocumentFileStorage
 import vn.scanviet.app.domain.usecase.ExportDocumentAsPdfUseCase
+import vn.scanviet.app.domain.usecase.RecognizeDocumentTextUseCase
 import vn.scanviet.app.domain.usecase.RenameDocumentUseCase
 import vn.scanviet.app.navigation.ScanVietRoutes
 import vn.scanviet.app.testing.FakeDocumentOutputTarget
 import vn.scanviet.app.testing.FakeDocumentRepository
+import vn.scanviet.app.testing.FakeOcrEngine
+import vn.scanviet.app.testing.FakePageImageLoader
 import vn.scanviet.app.testing.FakePdfExporter
 import vn.scanviet.app.testing.TestDispatcherProvider
 
@@ -50,6 +53,7 @@ class DocumentDetailViewModelTest {
     private lateinit var storage: DocumentFileStorage
     private lateinit var output: FakeDocumentOutputTarget
     private lateinit var exporter: FakePdfExporter
+    private lateinit var ocrEngine: FakeOcrEngine
     private lateinit var viewModel: DocumentDetailViewModel
 
     @Before
@@ -60,6 +64,7 @@ class DocumentDetailViewModelTest {
         repository = FakeDocumentRepository()
         output = FakeDocumentOutputTarget()
         exporter = FakePdfExporter()
+        ocrEngine = FakeOcrEngine()
         viewModel = createViewModel()
     }
 
@@ -237,8 +242,14 @@ class DocumentDetailViewModelTest {
             outputTarget = output,
             pdfExporter = exporter,
         ),
+        recognizeText = RecognizeDocumentTextUseCase(
+            repository = repository,
+            storage = storage,
+            ocrEngine = ocrEngine,
+        ),
         storage = storage,
         savedStateHandle = SavedStateHandle(mapOf(ScanVietRoutes.ARG_DOCUMENT_ID to DOC_ID)),
+        thumbnailLoader = FakePageImageLoader(),
     )
 
     private fun messageRes(): Int? = viewModel.message.value?.resId

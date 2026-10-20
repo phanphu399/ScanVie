@@ -53,6 +53,7 @@ class OfflineDocumentRepositoryTest {
         repository = OfflineDocumentRepository(
             database = database,
             documentDao = database.documentDao(),
+            ocrDao = database.ocrDao(),
             fileStorage = storage,
             timeProvider = timeProvider,
             dispatchers = dispatchers,
@@ -226,14 +227,14 @@ class OfflineDocumentRepositoryTest {
     }
 
     @Test
-    fun `đếm được số trang thiếu file ảnh`() = runTest {
+    fun `xác định được trang thiếu file ảnh`() = runTest {
         createDocumentWithRealFiles("doc-1", "Hóa đơn điện", pageCount = 2)
-        assertEquals(0, repository.countMissingPageFiles("doc-1"))
+        assertEquals(emptySet<Int>(), repository.missingPageIndices("doc-1"))
 
         // Mô phỏng file bị mất (người dùng xoá bằng công cụ khác, hoặc khôi phục dữ liệu lỗi).
         storage.resolve("documents/doc-1/page_0002.jpg").delete()
 
-        assertEquals(1, repository.countMissingPageFiles("doc-1"))
+        assertEquals(setOf(2), repository.missingPageIndices("doc-1"))
     }
 
     @Test

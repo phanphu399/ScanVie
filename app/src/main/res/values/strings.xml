@@ -52,6 +52,30 @@
     <string name="detail_missing_pages_warning">%1$d trang bị thiếu file ảnh trên máy.</string>
     <string name="detail_ocr_label">Nhận dạng chữ tiếng Việt</string>
     <string name="detail_ocr_placeholder">Sẽ có ở Giai đoạn 3. Chạy trên thiết bị, không gửi tài liệu lên máy chủ.</string>
+    <string name="detail_ocr_note">Chữ được nhận dạng ngay trên máy, không gửi tài liệu lên máy chủ. Khi lưu hoặc chia sẻ PDF, lớp chữ này được nhúng chìm để tìm và copy được.</string>
+    <string name="detail_ocr_run">Nhận dạng chữ</string>
+    <string name="detail_ocr_rerun">Nhận dạng lại</string>
+    <string name="detail_ocr_running">Đang nhận dạng chữ…</string>
+    <string name="detail_ocr_running_pages">Đang nhận dạng %1$d trang…</string>
+    <string name="detail_ocr_done_count">Đã nhận dạng %1$d trang.</string>
+    <string name="detail_ocr_empty">Không tìm thấy chữ trong tài liệu này.</string>
+    <string name="detail_ocr_result_label">Chữ nhận dạng được</string>
+    <string name="detail_ocr_copy">Copy toàn bộ chữ</string>
+    <string name="detail_ocr_copied">Đã copy chữ vào bộ nhớ tạm.</string>
+    <string name="detail_ocr_page_header">Trang %1$d</string>
+    <string name="detail_ocr_status_none">Chưa nhận dạng chữ. Bấm “Nhận dạng chữ” để tạo cả lớp chữ cho PDF.</string>
+    <string name="detail_ocr_status_failed">Lần nhận dạng trước bị lỗi. Hãy thử lại.</string>
+    <string name="detail_ocr_warning_pdf">PDF xuất ra sẽ KHÔNG copy được chữ nếu bạn chưa nhận dạng.</string>
+    <string name="detail_view_pages">Xem các trang</string>
+    <string name="detail_open_page">Mở trang %1$d</string>
+
+    <!-- Xem ảnh toàn màn hình -->
+    <string name="viewer_title">Trang %1$d/%2$d</string>
+    <string name="viewer_loading">Đang mở ảnh…</string>
+    <string name="viewer_error">Không mở được ảnh trang này.</string>
+    <string name="viewer_zoom_in">Phóng to</string>
+    <string name="viewer_zoom_out">Thu nhỏ</string>
+    <string name="viewer_reset_zoom">Về cỡ gốc</string>
     <string name="detail_export_label">Xuất PDF và chia sẻ</string>
     <string name="detail_export_save">Lưu bản PDF</string>
     <string name="detail_export_share">Chia sẻ PDF</string>
@@ -120,6 +144,26 @@
     <string name="settings_version">Phiên bản %1$s</string>
     <string name="settings_privacy_note">Tài liệu nằm trong vùng riêng của ứng dụng và không được tải lên máy chủ. Auto Backup của Android đã bị tắt cho ứng dụng này.</string>
 
+    <!-- Cập nhật ứng dụng -->
+    <string name="settings_section_updates">Cập nhật</string>
+    <string name="settings_check_updates_label">Tự kiểm tra bản cập nhật</string>
+    <string name="settings_check_updates_hint">Chỉ gửi một yêu cầu đọc phiên bản mới nhất. Không gửi tài liệu, ảnh hay chữ đã nhận dạng.</string>
+    <string name="update_check_button">Kiểm tra cập nhật</string>
+    <string name="update_checking">Đang kiểm tra…</string>
+    <string name="update_up_to_date">Bạn đang dùng bản mới nhất.</string>
+    <string name="update_available_title">Có bản cập nhật %1$s</string>
+    <string name="update_available_size">Dung lượng: %1$s</string>
+    <string name="update_download_button">Tải và cài đặt</string>
+    <string name="update_downloading">Đang tải… %1$d%%</string>
+    <string name="update_downloading_unknown">Đang tải…</string>
+    <string name="update_installed">Đang mở trình cài đặt. Làm theo hướng dẫn trên màn hình.</string>
+    <string name="update_done_button">Xong</string>
+    <string name="update_check_failed">Không kiểm tra được bản cập nhật. Kiểm tra kết nối mạng rồi thử lại.</string>
+    <string name="update_download_failed">Tải bản cập nhật bị gián đoạn. Hãy thử lại.</string>
+    <string name="update_unsupported">Bản phát hành này thiếu file cài đặt. Hãy tải bản mới từ trang phát hành.</string>
+    <string name="update_permission_needed">Ứng dụng cần quyền “Cài đặt ứng dụng không rõ nguồn gốc” để cập nhật. Hãy bật quyền rồi bấm tải lại.</string>
+    <string name="update_notes_label">Có gì mới</string>
+
     <!-- Lỗi -->
     <string name="error_generic">Có lỗi xảy ra. Vui lòng thử lại.</string>
     <string name="error_storage">Không truy cập được bộ nhớ ứng dụng.</string>
@@ -128,6 +172,7 @@
     <string name="error_unreadable_scan_page">Không đọc được ảnh vừa quét. Hãy quét lại trang đó.</string>
     <string name="error_page_image_missing">Trang %1$d bị thiếu file ảnh trên máy nên không xuất được PDF.</string>
     <string name="error_export_failed">Không tạo được file PDF. Hãy thử lại hoặc chọn nơi lưu khác.</string>
+    <string name="error_ocr_failed">Không nhận dạng được chữ. Hãy kiểm tra ảnh có bị mờ hoặc mất file không, rồi thử lại.</string>
 
     <!-- Nội dung mô tả cho trình đọc màn hình -->
     <string name="cd_open_settings">Mở cài đặt</string>
@@ -136,4 +181,6 @@
     <string name="cd_search">Tìm kiếm tài liệu</string>
     <string name="cd_clear_search">Xoá từ khoá tìm kiếm</string>
     <string name="cd_document_icon">Biểu tượng tài liệu</string>
+    <string name="cd_document_thumbnail">Ảnh trang đầu của tài liệu</string>
+    <string name="cd_scanned_page">Ảnh trang tài liệu đã quét</string>
 </resources>

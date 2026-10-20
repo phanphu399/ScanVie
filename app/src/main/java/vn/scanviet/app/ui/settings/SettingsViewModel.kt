@@ -48,6 +48,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setKeepOriginalImage(enabled) }
     }
 
+    fun onCheckForUpdatesChange(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setCheckForUpdates(enabled) }
+    }
+
     private companion object {
         const val STOP_TIMEOUT_MILLIS = 5_000L
     }

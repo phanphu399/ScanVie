@@ -5,7 +5,7 @@
     <!--
       QUYỀN CỦA ỨNG DỤNG — trạng thái thật sau khi hợp nhất manifest (Giai đoạn 2).
 
-      Ứng dụng KHÔNG tự khai báo quyền nào. Cụ thể:
+      Ứng dụng tự khai báo ĐÚNG MỘT quyền (xem khối ngay dưới). Các điểm khác:
       - Tài liệu nằm trong vùng riêng của app (filesDir) nên không cần quyền bộ nhớ.
       - KHÔNG cần android.permission.CAMERA: giao diện quét nằm trong tiến trình của
         Google Play services (`com.google.mlkit.vision.documentscanner.internal.GmsDocumentScanningDelegateActivity`,
@@ -18,11 +18,34 @@
       - android.permission.INTERNET và android.permission.ACCESS_NETWORK_STATE
         thêm bởi `com.google.android.datatransport:transport-backend-cct` (phụ thuộc bắc cầu
         của ML Kit). Đây là kênh truyền số liệu của Google.
-        Ứng dụng KHÔNG gửi ảnh, PDF hay văn bản OCR lên máy chủ nào; không có mã nào trong
-        `vn.scanviet.app` gọi HTTP. INTERNET cũng là thứ cho phép lần quét đầu tiên tải
-        công cụ quét về máy (sau đó dùng được ngoại tuyến).
+        INTERNET cũng là thứ cho phép lần quét đầu tiên tải công cụ quét về máy (sau đó dùng
+        được ngoại tuyến).
         => Kiểm chứng bằng app/build/outputs/logs/manifest-merger-*-report.txt.
+
+      TỪ GIAI ĐOẠN 4, ứng dụng CÓ gọi HTTP — đúng hai trường hợp, cả hai đều chỉ ĐỌC:
+      - Đọc `api.github.com/.../releases/latest` để biết có bản cập nhật mới hay không.
+        Chỉ nhận một file JSON công khai; KHÔNG gửi kèm mã định danh thiết bị, tài liệu,
+        ảnh, hay chữ đã nhận dạng.
+      - Tải file APK khi người dùng CHỦ ĐỘNG bấm "Tải và cài đặt".
+      Không có trường hợp nào ứng dụng tải tài liệu của người dùng lên máy chủ.
+      Người dùng tắt được việc kiểm tra tự động trong Cài đặt.
     -->
+
+    <!--
+      QUYỀN DUY NHẤT ỨNG DỤNG TỰ KHAI BÁO — chỉ vì cơ chế tự cập nhật APK.
+
+      Vì sao cần: từ Android 8 (API 26), hệ thống chặn mọi ứng dụng mở trình cài đặt APK cho
+      tới khi có quyền này VÀ người dùng tự bật "Cài đặt ứng dụng không rõ nguồn gốc" trong
+      Cài đặt hệ thống. Thiếu khai báo thì `canRequestPackageInstalls()` luôn trả false và màn
+      hình xin quyền không mở được — người dùng bấm "Tải và cài đặt" mà không có gì xảy ra.
+
+      Đây KHÔNG phải quyền runtime nguy hiểm, nhưng Google Play xét duyệt kỹ. Chỉ chấp nhận
+      được vì ứng dụng phát hành APK trực tiếp; khi lên Google Play, ứng dụng KHÔNG được tự
+      tải APK, lúc đó phải bỏ quyền này và đổi `UpdateSource` sang luồng của Play.
+
+      Ứng dụng KHÔNG tự cài. Nó chỉ mở trình cài đặt của hệ thống; người dùng quyết định.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".ScanVietApplication"

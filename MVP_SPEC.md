@@ -2,7 +2,7 @@
 
 > Nguyên tắc: **không làm bản sao CamScanner**. V1 làm tốt đúng 3 việc:
 > 1. Scan giấy tờ → PDF rõ, nhiều trang, dễ chia sẻ.
-> 2. OCR tiếng Việt **ngay trên máy**, không gửi tài liệu lên server.
+> 2. OCR tiếng Việt **ngay trên máy**, không gửi tài liệu lên server. 🔴 **Chưa đạt — xem §2.5: ML Kit v2 không hỗ trợ tiếng Việt có dấu; phải thay engine.**
 > 3. Miễn phí, dễ dùng, quảng cáo không cản trở việc scan.
 >
 > Tên "ScanViet" chỉ là tên làm việc. Trước khi phát hành: kiểm tra tên trên Play, kiểm tra thương hiệu/logo, chọn namespace chính thức (**không dùng `com.example`** — nên chọn kiểu `vn.scanviet.app` và kiểm tra khả năng đăng ký sớm).
@@ -47,19 +47,44 @@
 | Thành phần | Cách hoạt động | Cần mạng? |
 |---|---|---|
 | ML Kit Document Scanner | UI + model tải qua **Google Play services**; lần đầu có thể cần mạng | Lần đầu |
-| OCR (Text Recognition v2) | Dùng artifact **bundled** `com.google.mlkit:text-recognition` — mô hình nằm trong APK | **Không** (kể cả lần đầu) |
+| OCR (Text Recognition v2) | Mô hình nằm trong APK (bundled) | **Không** — nhưng xem §2.5: không hỗ trợ tiếng Việt có dấu |
 | Lưu/đọc tài liệu | Room + file nội bộ app | Không |
+| Kiểm tra cập nhật | Đọc JSON công khai từ GitHub Releases, có thể tắt trong Cài đặt | Có (chỉ khi kiểm tra) |
 | Quảng cáo (sau này) | AdMob | Cần mạng — nhưng scan/OCR/xuất vẫn chạy bình thường khi offline |
 
 → Câu marketing đúng: **"Tài liệu được xử lý trên thiết bị, không cần tải lên máy chủ."** Không quảng cáo "hoàn toàn offline 100%" vì Document Scanner có thể tải resource lần đầu qua Play services.
+→ **Không** quảng cáo "OCR tiếng Việt" cho tới khi thay engine OCR (§2.5).
+
+### 2.5. Engine OCR — trạng thái thật và các phương án
+
+ML Kit Text Recognition v2 **không nhận dạng được tiếng Việt có dấu**. Đây là kết luận sau khi đọc tài liệu Google chính thức và kiểm tra model trong APK đã đóng gói, không phải phỏng đoán.
+
+| Engine | Tiếng Việt có dấu | Offline | Chi phí / rủi ro |
+|---|---|---|---|
+| ML Kit Text Recognition v2 *(đang dùng)* | ❌ **Không** | ✅ | Miễn phí. Đã chứng minh không đạt. |
+| ML Kit Document Scanner | — | — | **Không có chức năng OCR.** Không phải phương án. |
+| **Tesseract + `vie.traineddata`** | ✅ Có | ✅ | Miễn phí, Apache 2.0. Độ chính xác thấp hơn trên ảnh chụp nghiêng/thiếu sáng; cần tiền xử lý ảnh. **Ứng viên chính cho offline.** |
+| **PaddleOCR / ONNX Runtime Mobile** | ✅ Khá tốt | ✅ | Miễn phí. Mô hình lớn, cần cầu nối native. Chất lượng cao hơn Tesseract. |
+| Google Cloud Vision | ✅ Rất tốt | ❌ | Phải gửi ảnh lên máy chủ Google → cần người dùng tự bật + cảnh báo rõ. Cần API key, không được nhúng trong APK. |
+
+Hướng đã chốt với chủ dự án: **hybrid** — Tesseract/PaddleOCR mặc định (offline), Cloud Vision là tùy chọn nâng cao do người dùng tự bật và đã xác nhận cảnh báo.
+
+Cổng `OcrEngine` đã tách sẵn, nên **thay engine không đụng tới Room, ViewModel, hay PDF exporter**. Đây chính là lợi ích của Clean Architecture đã chọn.
 
 ### 2.2. Quyết định 8 điểm (đọc trước khi code)
 
 1. **Dùng luôn UI có sẵn của ML Kit Document Scanner** cho màn hình 2 (nó đã có cắt mép, xoay, filter, nhiều trang, sắp xếp trang). Bù lại: giao diện ít tùy chỉnh được và chỉ chạy được trên máy có Google Play services. Custom crop screen bằng Compose + OpenCV chỉ làm **sau** MVP nếu cần thương hiệu hóa.
 2. **Kết quả scanner là URI tạm thời** (lưu trong MediaStore tạm, chỉ app mình truy cập được và có thể hết hạn). Sau khi scan xong phải **copy ngay vào `filesDir` của app**, rồi mới ghi dòng Room. Không bao giờ giữ URI của scanner làm nguồn sự thật.
 3. **Nguồn sự thật của file = thư mục nội bộ app** (`filesDir/`); Room chỉ lưu metadata + đường dẫn. Storage Access Framework chỉ dùng cho nút **"Lưu bản sao ra…"** (export) và Share sheet. Nhờ vậy **không cần xin quyền bộ nhớ ngoài**.
-4. **OCR chạy bằng artifact bundled** (`com.google.mlkit:text-recognition`) thay vì artifact qua Play services (`com.google.android.gms:play-services-mlkit-text-recognition`) — đảm bảo OCR chạy offline ngay lần mở đầu.
-   > ⚠️ Đính chính (kiểm tra ngày 19/10/2026): tài liệu trước đây ghi `com.google.mlkit:text-recognition-latin`. **Artifact đó không tồn tại** (Google Maven trả 404). Bản bundled cho chữ Latin — gồm tiếng Việt có dấu — là `com.google.mlkit:text-recognition`, bản stable mới nhất `16.0.1`.
+4. **OCR chạy bằng artifact bundled** (`com.google.mlkit:text-recognition`) thay vì artifact qua Play services (`com.google.android.gms:play-services-mlkit-text-recognition`) — đảm bảo mô hình nằm sẵn trong APK, không phải chờ tải về.
+   > ⚠️ Đính chính (kiểm tra ngày 19/10/2026): tài liệu trước đây ghi `com.google.mlkit:text-recognition-latin`. **Artifact đó không tồn tại** (Google Maven trả 404).
+   >
+   > 🔴 **ĐÍNH CHÍNH LẦN 2 — QUAN TRỌNG (20/10/2026):** tài liệu này từng ghi artifact bundled "gồm tiếng Việt có dấu". **Điều đó SAI.** Kiểm tra tài liệu Google chính thức và chính APK đã đóng gói:
+   > - Text Recognition v2 chỉ hỗ trợ **5 hệ chữ**: Latin, Chinese, Devanagari, Japanese, Korean. **Không có tiếng Việt.**
+   > - Model đóng gói thật trong APK là `Latn_ctc` (`assets/mlkit-google-ocr-models/.../Latn_ctc/optical/conv_model.fb`), và nó **bỏ dấu** hoặc trả chuỗi rỗng với văn bản tiếng Việt.
+   > - **API Document Scanner KHÔNG có chức năng OCR.** Nó chỉ trả ảnh JPEG và PDF dạng ảnh. Không dùng nó để thay thế.
+   >
+   > **Hệ quả:** tính năng "nhận dạng chữ tiếng Việt" **chưa đạt yêu cầu** và không được quảng cáo cho tới khi thay engine (xem §2.5). Lớp chữ ẩn trong PDF vẫn được vẽ đúng kỹ thuật, nhưng nội dung chữ do engine hiện tại sinh ra không đáng tin.
 5. **AdMob = 100% nằm ngoài MVP.** Thêm quảng cáo sau khi có verdict closed testing, vì AdMob cần privacy policy + duyệt, và banner/interstitial tuyệt đối **không** đặt trong luồng chụp.
 6. **Min SDK 23, target SDK = mức Play yêu cầu tại thời điểm nộp.**
 7. **Một module `:app` ở Giai đoạn 1** (đã chốt lại theo `AGENTS.md` §2), ranh giới package trùng tên module tương lai; tách `:core:*`, `:platform:*`, `:feature:*` theo từng giai đoạn sau. Không dựng sẵn 13 module ngày đầu, không tạo `build-logic` khi chưa có ≥4 module, nhưng **không** để logic nằm lẫn trong UI hay `MainActivity`. Chi tiết: `ARCHITECTURE.md` mục 8.
@@ -72,7 +97,9 @@
 | Máy không có Google Play services (Huawei/Honor cũ) → Document Scanner không chạy | v1: hiện thông báo thân thiện + hướng dẫn thay thế (dùng ảnh từ gallery). Backlog: fallback OpenCV. |
 | URI scanner hết hạn / mất quyền giữa chừng | Copy ngay vào app storage (điểm 2 ở trên); có try/catch + thông báo lỗi rõ ràng. |
 | OCR sai trên ảnh mờ/nghiêng/chữ viết tay | Preprocess bằng filter có sẵn của scanner; ghi nhận giới hạn trong mô tả Play; bộ ảnh fixture test. |
+| **ML Kit v2 không hỗ trợ tiếng Việt có dấu** (đã xác nhận 20/10/2026) | 🔴 **Rủi ro đã thành hiện thực.** Phải thay engine (§2.5) trước khi quảng cáo tính năng. Không sửa được bằng cấu hình. |
 | OCR không cho biết độ tin cậy từng dòng (ML Kit v2 không expose confidence) | Chỉ hiển thị trạng thái "không đọc được chữ nào" khi result rỗng; không bịa độ tin cậy. |
+| Tự cập nhật qua GitHub Releases im lặng không báo (repo private trả 404; bản pre-release bị `/releases/latest` bỏ qua) | Đã kiểm chứng: `/releases/latest` trả 404 với repo private và với bản pre-release. Bản phát hành muốn app nhìn thấy **phải là bản chính thức, không tick pre-release**. Lỗi được xử lý thành thông báo "không kiểm tra được", không nói dối là "đã mới nhất". |
 | Namespace `com.example.*` | Bắt buộc chọn namespace chính thức có thể đăng ký được. |
 
 ### 2.4. Dependency (versions: lấy bản stable mới nhất tại thời điểm code, kiểm tra docs chính thức)
@@ -157,9 +184,11 @@ Quy ước bất di bất dịch: wrapper scanner chỉ scan; OCR engine chỉ n
 |---|---|---|
 | 1. Nền tảng | Dựng project Compose + Nav + ViewModel, trang chủ + list rỗng, chạy trên máy thật, Git | 2–4 ngày |
 | 2. Scan & PDF | Tích hợp Document Scanner (nhiều trang), copy kết quả vào app storage, xem trước, đặt tên, lưu, chia sẻ, xử lý huỷ/thiếu file | 3–6 ngày |
-| 3. OCR tiếng Việt | Đọc từng ảnh trang, ghép text theo trang, sửa tay, copy/share, báo lỗi khi không đọc được | 3–6 ngày |
-| 4. Quản lý tài liệu | Room metadata, đổi tên/tìm kiếm/xóa/mở lại, xử lý file mất/quyền hết | 3–5 ngày |
-| 5. Kiểm thử & phát hành | Test offline/quyền/crash, đo OCR trên tài liệu thật, tối ưu dung lượng PDF, icon + screenshots + privacy policy, closed testing | 4–7 ngày |
+| 3. OCR tiếng Việt | Đọc từng ảnh trang, ghép text theo trang, sửa tay, copy/share, báo lỗi khi không đọc được. **Trạng thái: khung kỹ thuật xong, engine chưa đạt — xem §2.5.** | 3–6 ngày |
+| 4. Quản lý tài liệu | Room metadata, đổi tên/tìm kiếm/xóa/mở lại, xử lý file mất/quyền hết. **Trạng thái: xong (Giai đoạn 3 của mã nguồn).** | 3–5 ngày |
+| 4b. Thay engine OCR | Tesseract + `vie.traineddata` (offline) và/hoặc PaddleOCR; Cloud Vision là tùy chọn có cảnh báo. Cổng `OcrEngine` đã tách sẵn nên không đụng Room/ViewModel/PDF. | 5–10 ngày |
+| 5. Cập nhật & phát hành | Cơ chế tự cập nhật qua GitHub Releases (**Trạng thái: xong**), tự động cập nhật qua Play sau này, icon + screenshots + privacy policy, closed testing | 4–7 ngày |
+| 6. Kiểm thử & phát hành | Test offline/quyền/crash, đo OCR trên tài liệu thật, tối ưu dung lượng PDF, closed testing | 4–7 ngày |
 
 **Tổng: ~3–6 tuần** (học + làm đều đặn, có AI hỗ trợ). Mỗi giai đoạn = 1 merge/commit riêng, build được thì mới sang bước sau.
 
@@ -193,7 +222,7 @@ từng file, nêu rõ đường dẫn, dependency cần thêm, cách kiểm th�
 
 ## 6. Kiểm thử
 
-### 6.1. Đã có test tự động (140 test, 0 lỗi — chạy `./gradlew testDebugUnitTest`)
+### 6.1. Đã có test tự động (193 test / 0 lỗi / 21 suite — chạy `./gradlew :app:testDebugUnitTest`)
 
 | Nhóm | Test | Nội dung |
 |---|---|---|
@@ -206,9 +235,15 @@ từng file, nêu rõ đường dẫn, dependency cần thêm, cách kiểm th�
 | Luồng xuất PDF — màn hình | `DocumentDetailViewModelTest` (10) | lưu bản sao → ghi PDF + báo thành công; truyền đúng URI người dùng chọn; chia sẻ → **file PDF thật tồn tại trong vùng nháp**; tên file theo tên tài liệu (bỏ dấu); xoá yêu cầu chia sẻ sau khi xử lý (xoay màn hình không mở lại); thiếu ảnh → thông báo **kèm số trang** và **không** phát yêu cầu chia sẻ; lỗi ghi/lỗi mở đích → `isExporting` trở về `false` (nút không kẹt) |
 | Luồng quét — màn hình | `ScanViewModelTest` (17) | chuẩn bị quét → phát `IntentSender`; xoá yêu cầu sau khi dùng; máy không hỗ trợ → thông báo riêng; huỷ → về trạng thái chờ; nhận kết quả → danh sách trang + tên mặc định; chuyển trang lên/xuống, bỏ qua chỉ số ngoài danh sách; xoá trang; xoá hết trang → không cho lưu; lưu thành công → file thật + bản ghi + `Saved`; lưu lỗi → giữ nguyên trang, có thông báo |
 | Thư viện | `LibraryViewModelTest` (13), `DocumentStorageMaintenanceTest` (7) | trạng thái rỗng/tìm kiếm/đổi tên/xoá; dọn thùng rác quá hạn, thư mục mồ côi |
+| Nhận dạng chữ | `RecognizeDocumentTextUseCaseTest` (11) | bỏ qua trang đã nhận dạng (không chạy lại tốn thời gian); một trang lỗi không làm hỏng cả tài liệu; lưu toạ độ chuẩn hoá; tài liệu không tồn tại → lỗi rõ ràng; huỷ giữa chừng không ghi dở. **Lưu ý: test này dùng engine giả, nên nó chứng minh luồng nghiệp vụ, KHÔNG chứng minh chất lượng nhận dạng chữ tiếng Việt.** |
+| Nâng cấp cơ sở dữ liệu | `ScanVietDatabaseMigrationTest` (3) | dựng schema v1 bằng SQL thô với đúng identity hash từ `app/schemas/.../1.json` rồi mở bằng Room v2: dữ liệu cũ còn nguyên, bảng OCR mới tồn tại, ghi/đọc được. **Đã chứng minh test thật sự bắt lỗi** bằng cách cố tình đổi tên bảng `ocr_lines` → cả 3 test FAIL |
+| So sánh phiên bản | `VersionComparatorTest` (13) | `0.10.0` mới hơn `0.9.0` (so chuỗi thì ngược lại — đây là lý do lớp này tồn tại); bỏ tiền tố `v`/`V`; bỏ hậu tố `-beta`; phần thiếu coi là 0; chuỗi không có số → phiên bản 0 |
+| Cập nhật — nghiệp vụ | `CheckForUpdateUseCaseTest` (7) | bản mới hơn → `Available`; **cùng phiên bản → `UpToDate`**; nguồn không có release → `UpToDate`; **lỗi mạng ném `UpdateCheckFailedException` chứ KHÔNG nói dối "đã là bản mới nhất"** |
+| Cập nhật — đọc GitHub | `GitHubReleaseSourceTest` (11) | đọc đúng `tag_name`/`size`/`body`; **bỏ tiền tố `v`**; gọi đúng URL và header `Accept`; **ưu tiên APK `arm64`**; bỏ qua file không phải `.apk`; thiếu `tag_name`/URL tải/danh sách rỗng → lỗi rõ ràng; JSON hỏng và lỗi mạng đều thành `UpdateCheckFailedException` |
+| Cập nhật — trạng thái tải | `UpdateUiStateTest` (5) | phần trăm đúng; không biết tổng dung lượng → `null` (không bịa số); **không vượt quá 100%** khi máy chủ báo thiếu `Content-Length` |
 | Giới hạn của bộ test | `RobolectricPdfLimitationTest` (1) | ghi lại **bằng chứng** rằng Robolectric không chạy được `PdfDocument` (`startPage` → `IllegalStateException: document is closed!`), để không ai tưởng phần sinh PDF đã được kiểm thử |
 
-**Điều test tự động KHÔNG chứng minh được:** chính trình quét của ML Kit (nó là Activity của Play services), việc cấp quyền camera, việc tải công cụ quét lần đầu, **chất lượng file PDF do `android.graphics.pdf.PdfDocument` sinh ra**, và mọi thứ về bố cục/giao diện. Xem 6.3.
+**Điều test tự động KHÔNG chứng minh được:** chính trình quét của ML Kit (nó là Activity của Play services), việc cấp quyền camera, việc tải công cụ quét lần đầu, **chất lượng file PDF do `android.graphics.pdf.PdfDocument` sinh ra** (kể cả **lớp chữ ẩn có thật sự copy được bằng Ctrl+F hay không** — Robolectric không chạy nổi `PdfDocument`), **chất lượng nhận dạng chữ tiếng Việt** (engine giả trong test không chứng minh được điều này), việc mở trình cài đặt APK của hệ thống, và mọi thứ về bố cục/giao diện. Xem 6.3.
 
 ### 6.2. Dữ liệu thật cho OCR (Giai đoạn 3)
 
@@ -225,6 +260,8 @@ OCR là tính năng tạo khác biệt → chuẩn bị **bộ dữ liệu thậ
 | File lớn | Bộ nhớ, thời gian xử lý, nguy cơ crash |
 
 **Tiêu chí dừng (exit criteria) cho Giai đoạn 3:** trên ≥20 ảnh tài liệu in tiếng Việt thật, ≥90% dòng chữ đọc đúng nguyên vẹn; ảnh mờ/chữ viết tay chỉ cần ghi nhận "kết quả kém" chứ không crash.
+
+> 🔴 **Tiêu chí này CHƯA ĐẠT và không thể đạt bằng engine hiện tại.** ML Kit Text Recognition v2 không hỗ trợ tiếng Việt có dấu (§2.5). Bộ dữ liệu trên vẫn cần chuẩn bị, nhưng chỉ có ý nghĩa sau khi thay engine. **Không được ghi "OCR tiếng Việt" trong mô tả Play cho tới lúc đó.**
 
 ### 6.3. Việc PHẢI kiểm tra bằng tay trên máy thật (chưa làm được ở môi trường hiện tại)
 
@@ -250,7 +287,30 @@ Không có thiết bị/emulator trong môi trường phát triển, nên các m
 15. Máy ít dung lượng: xuất tài liệu 20 trang → không bị kill giữa chừng, không hết RAM.
 16. Chọn nơi lưu là Google Drive → xác nhận file thật sự được tải lên (SAF qua provider là con đường dễ lộ lỗi cấp quyền nhất).
 
+**Xem trang và lớp chữ ẩn (Giai đoạn 3) — chưa từng chạy:**
+
+17. Mở tài liệu → **xem ảnh thu nhỏ** trong danh sách thư viện: có hiện đúng trang đầu không, cuộn danh sách dài có giật không.
+18. Mở **trình xem toàn màn hình** → chụm hai ngón để phóng to: ảnh phải nét (không vỡ hạt), vuốt ngang đổi trang, đóng ra không giữ trạng thái zoom của trang cũ.
+19. Xoay màn hình khi đang phóng to → không mất vị trí, không crash.
+20. 🔴 **Quan trọng nhất:** xuất PDF → mở file trên **máy tính** bằng Chrome/Adobe Reader:
+    - Bôi đen được chữ và dán ra Notepad → **chữ copy được**.
+    - Ctrl+F tìm một từ có trong tài liệu → **tìm thấy**.
+    - Chữ copy ra **có đúng dấu tiếng Việt không** (đây là phép thử engine OCR; kết quả mong đợi với ML Kit hiện tại là **SAI DẤU hoặc RỖNG** — ghi nhận trung thực, không sửa bằng cách tắt tính năng).
+21. Bấm "Nhận dạng chữ" trên tài liệu đã nhận dạng rồi → phải **bỏ qua**, không chạy lại.
+22. Ngắt mạng rồi bấm "Nhận dạng chữ" → phải chạy được (model nằm trong APK).
+
+**Cập nhật ứng dụng (Giai đoạn 4) — chưa từng chạy:**
+
+23. Cài bản cũ (0.2 beta) trên máy → cài bản 0.4.0 → mở app → Cài đặt: phải thấy "Đang dùng bản mới nhất" (vì chưa có bản phát hành nào MỚI HƠN 0.4.0).
+24. Phát hành một bản **chính thức** (KHÔNG tick pre-release) với `versionName` cao hơn → mở app → phải thấy "Có bản cập nhật X.Y.Z" + dung lượng + nút "Tải và cài đặt".
+25. Bấm "Tải và cài đặt" lần đầu trên Android 8+ → hệ thống mở màn hình xin quyền "Cài đặt ứng dụng không rõ nguồn gốc" → bật quyền → quay lại → bấm lại → trình cài đặt của hệ thống mở ra.
+26. Ngắt mạng rồi bấm "Kiểm tra cập nhật" → phải hiện **"Không kiểm tra được bản cập nhật"**, TUYỆT ĐỐI không hiện "Bạn đang dùng bản mới nhất".
+27. Tắt "Tự kiểm tra bản cập nhật" trong Cài đặt → mở lại Cài đặt → không thấy vòng xoay kiểm tra chạy.
+28. Bấm "Tải và cài đặt" rồi bấm lần nữa thật nhanh → chỉ được có **một** tiến trình tải, không sinh file APK hỏng.
+
 Lý do các mục 9–16 phải làm bằng tay: Robolectric **không chạy được** `android.graphics.pdf.PdfDocument` (xem `RobolectricPdfLimitationTest`), nên chất lượng file PDF do `platform/pdf/AndroidPdfExporter` sinh ra không thể xác nhận bằng unit test. Ngược lại, mục 13 và 14 có test tự động bảo vệ phần logic; việc kiểm tay là để xác nhận bản thân file PDF đúng.
+
+Lý do các mục 23–28 phải làm bằng tay: chúng phụ thuộc **máy chủ GitHub và chính sách của hệ điều hành** (quyền cài đặt từ nguồn không xác định, trình cài đặt hệ thống). Unit test chỉ chứng minh phần logic đọc JSON, so sánh phiên bản và tính phần trăm — không chứng minh được luồng cài đặt thật.
 
 Quy trình mỗi lần test: chạy offline hoàn toàn (máy chế độ máy bay) → xác nhận scan/OCR/xuất PDF vẫn chạy → ghi scorecard thủ công theo nhóm tài liệu. Sau này thêm mini-harness: thả ảnh fixture vào `androidTest/assets`, so khớp text kỳ vọng.
 
@@ -260,7 +320,9 @@ Quy trình mỗi lần test: chạy offline hoàn toàn (máy chế độ máy b
 
 - [ ] Namespace chính thức (không `com.example`), tên app kiểm tra chưa trùng trên Play
 - [ ] Privacy Policy (GitHub Pages free) + Data Safety form trung thực ("xử lý trên thiết bị, không thu thập")
-- [ ] Icon + 4–8 screenshots tiếng Việt + short description chứa từ khoá: scan tài liệu, quét tài liệu, OCR tiếng Việt, PDF
+- [ ] Icon + 4–8 screenshots tiếng Việt + short description chứa từ khoá: scan tài liệu, quét tài liệu, PDF
+      - ⚠️ **KHÔNG** đưa "OCR tiếng Việt" vào từ khoá/mô tả cho tới khi thay xong engine OCR (§2.5). Quảng cáo một tính năng không hoạt động sẽ bị gỡ khỏi Play và mất niềm tin người dùng.
+- [ ] Xuất bản chính thức **không tick pre-release** (bắt buộc, nếu không cơ chế tự cập nhật sẽ bỏ qua bản đó — đã kiểm chứng `/releases/latest` trả 404 với bản pre-release)
 - [ ] Closed testing ≥14 ngày với ≥12 tester (bắt buộc với dev mới)
 - [ ] In-app review trigger sau lần export PDF thành công thứ 3
 - [ ] Crashlytics (free) nếu kịp — cần privacy policy trước

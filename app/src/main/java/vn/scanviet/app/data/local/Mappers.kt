@@ -1,10 +1,14 @@
 package vn.scanviet.app.data.local
 
 import vn.scanviet.app.data.local.entity.DocumentEntity
+import vn.scanviet.app.data.local.entity.OcrLineEntity
+import vn.scanviet.app.data.local.entity.OcrPageEntity
 import vn.scanviet.app.data.local.entity.PageEntity
 import vn.scanviet.app.domain.model.Document
 import vn.scanviet.app.domain.model.DocumentPage
 import vn.scanviet.app.domain.model.OcrStatus
+import vn.scanviet.app.domain.model.OcrText
+import vn.scanviet.app.domain.model.StoredOcrLine
 
 internal fun DocumentEntity.toDomain(): Document = Document(
     id = id,
@@ -36,3 +40,22 @@ internal fun String.toOcrStatus(): OcrStatus =
 
 /** Id trang có tính xác định, nhờ vậy chèn lại cùng một trang là thao tác idempotent. */
 internal fun pageIdOf(documentId: String, pageIndex: Int): String = "${documentId}_p$pageIndex"
+
+internal fun OcrPageEntity.toDomain(lines: List<OcrLineEntity>): OcrText = OcrText(
+    documentId = documentId,
+    pageIndex = pageIndex,
+    lines = lines
+        .filter { it.pageIndex == pageIndex }
+        .sortedBy { it.lineIndex }
+        .map { line ->
+            StoredOcrLine(
+                text = line.text,
+                left = line.left,
+                top = line.top,
+                right = line.right,
+                bottom = line.bottom,
+            )
+        },
+    imageWidth = imageWidth,
+    imageHeight = imageHeight,
+)

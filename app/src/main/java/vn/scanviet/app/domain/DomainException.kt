@@ -29,3 +29,14 @@ class UnreadableScanPageException : DomainException()
  * nên lỗi chỉ được báo khi người dùng thao tác (xuất PDF), không phải lúc quét.
  */
 class PageImageMissingException(val documentId: String, val pageIndex: Int) : DomainException()
+
+/**
+ * Không nhận dạng được chữ cho bất kỳ trang nào của tài liệu.
+ *
+ * Vì sao là lỗi chứ không im lặng trả về chữ rỗng: người dùng bấm "Nhận dạng chữ" và
+ * chờ đợi; trả về thành công với nội dung rỗng sẽ khiến họ tưởng tài liệu không có chữ.
+ * Một thông báo lỗi rõ ràng để họ thử lại (hoặc chụp lại trang) mới là hành vi đúng.
+ *
+ * Không mang theo đường dẫn ảnh hay nội dung tài liệu — chỉ id và số trang hỏng.
+ */
+class OcrFailedException(val documentId: String, val failedPageCount: Int) : DomainException()

@@ -1,0 +1,238 @@
+package vn.scanviet.app.domain.usecase
+
+import android.app.Application
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import vn.scanviet.app.data.file.LocalDocumentFileStorage
+import vn.scanviet.app.domain.DocumentNotFoundException
+import vn.scanviet.app.domain.OcrFailedException
+import vn.scanviet.app.domain.model.NewDocumentPage
+import vn.scanviet.app.domain.model.OcrStatus
+import vn.scanviet.app.domain.storage.DocumentFileStorage
+import vn.scanviet.app.testing.FakeDocumentRepository
+import vn.scanviet.app.testing.FakeOcrEngine
+import vn.scanviet.app.testing.TestDispatcherProvider
+
+/**
+ * Kiểm tra việc nhận dạng chữ cho một tài liệu.
+ *
+ * Dùng file THẬT qua [LocalDocumentFileStorage] trên filesDir của Robolectric, vì phần quan
+ * trọng nhất là quan hệ giữa database và ảnh trên đĩa: trang nào có ảnh thật, trang nào đã
+ * mất. Engine nhận dạng được thay bằng bản giả — ML Kit thật không chạy được trên JVM.
+ *
+ * Các test tập trung vào những quyết định nghiệp vụ dễ sai: chạy lại có tốn công không,
+ * một trang lỗi có phá hỏng cả tài liệu không, và khi nào thì phải báo lỗi thay vì im lặng.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(application = Application::class)
+class RecognizeDocumentTextUseCaseTest {
+
+    private lateinit var storage: DocumentFileStorage
+    private lateinit var repository: FakeDocumentRepository
+    private lateinit var engine: FakeOcrEngine
+    private lateinit var useCase: RecognizeDocumentTextUseCase
+
+    @Before
+    fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        storage = LocalDocumentFileStorage(context, TestDispatcherProvider())
+        repository = FakeDocumentRepository()
+        engine = FakeOcrEngine()
+        useCase = RecognizeDocumentTextUseCase(
+            repository = repository,
+            storage = storage,
+            ocrEngine = engine,
+        )
+    }
+
+    @Test
+    fun `nhận dạng tất cả các trang và lưu lại kết quả`() = runTest {
+        seedDocument(pageCount = 3)
+
+        val newlyRecognized = useCase(DOC_ID)
+
+        assertEquals(3, newlyRecognized)
+        assertEquals(3, engine.callCount)
+        assertEquals(3, repository.observeOcrText(DOC_ID).firstValue().size)
+        assertEquals(OcrStatus.DONE, repository.getDocument(DOC_ID)?.ocrStatus)
+    }
+
+    @Test
+    fun `chữ được lưu theo đúng số trang`() = runTest {
+        seedDocument(pageCount = 2)
+
+        useCase(DOC_ID)
+
+        val pages = repository.observeOcrText(DOC_ID).firstValue().sortedBy { it.pageIndex }
+        assertEquals(listOf(1, 2), pages.map { it.pageIndex })
+        assertEquals("Hóa đơn điện", pages[0].fullText)
+    }
+
+    @Test
+    fun `trang đã nhận dạng rồi thì không chạy lại`() = runTest {
+        seedDocument(pageCount = 2)
+        useCase(DOC_ID)
+
+        // Xoá dấu vết lời gọi để đếm riêng lần chạy thứ hai.
+        engine.recognizedPaths.clear()
+        val secondRun = useCase(DOC_ID)
+
+        // Chạy lại OCR trên ảnh đã có chữ là tốn thời gian vô ích: cùng ảnh cho cùng kết quả.
+        assertEquals(0, secondRun)
+        assertEquals(0, engine.callCount)
+    }
+
+    @Test
+    fun `tài liệu nhiều trang chỉ nhận dạng thêm những trang còn thiếu`() = runTest {
+        seedDocument(pageCount = 3)
+        // Trang 1 và 3 đã có chữ từ trước; chỉ trang 2 còn thiếu.
+        repository.seedOcrText(
+            DOC_ID,
+            listOf(ocrPage(pageIndex = 1), ocrPage(pageIndex = 3)),
+        )
+
+        val newlyRecognized = useCase(DOC_ID)
+
+        assertEquals(1, newlyRecognized)
+        assertEquals(1, engine.callCount)
+        // Chữ cũ của trang 1 và 3 phải còn nguyên, không bị ghi đè thành rỗng.
+        assertEquals(
+            listOf(1, 2, 3),
+            repository.observeOcrText(DOC_ID).firstValue().map { it.pageIndex }.sorted(),
+        )
+    }
+
+    @Test
+    fun `một trang lỗi không làm hỏng chữ của các trang còn lại`() = runTest {
+        seedDocument(pageCount = 3)
+        // Trang 2 có ảnh hỏng/không đọc được.
+        engine.failForPaths = setOf(storage.resolve(path(2)).path)
+
+        val newlyRecognized = useCase(DOC_ID)
+
+        // Người dùng mất chữ của một trang còn hơn mất chữ của tất cả.
+        assertEquals(2, newlyRecognized)
+        assertEquals(
+            listOf(1, 3),
+            repository.observeOcrText(DOC_ID).firstValue().map { it.pageIndex }.sorted(),
+        )
+    }
+
+    @Test
+    fun `trang thiếu file ảnh thì bị bỏ qua chứ không làm hỏng cả tài liệu`() = runTest {
+        seedDocument(pageCount = 2)
+        storage.resolve(path(1)).delete()
+
+        val newlyRecognized = useCase(DOC_ID)
+
+        assertEquals(1, newlyRecognized)
+        assertEquals(listOf(2), repository.observeOcrText(DOC_ID).firstValue().map { it.pageIndex })
+    }
+
+    @Test
+    fun `không trang nào nhận dạng được thì báo lỗi chứ không im lặng thành công`() = runTest {
+        seedDocument(pageCount = 2)
+        engine.failAll = true
+
+        val result = runCatching { useCase(DOC_ID) }
+
+        // Trả về thành công với nội dung rỗng sẽ khiến người dùng tưởng tài liệu không có chữ.
+        assertTrue(result.exceptionOrNull() is OcrFailedException)
+    }
+
+    @Test
+    fun `thất bại thì trạng thái được ghi là FAILED để người dùng biết cần thử lại`() = runTest {
+        seedDocument(pageCount = 1)
+        engine.failAll = true
+
+        runCatching { useCase(DOC_ID) }
+
+        // Nếu để nguyên NONE, danh sách hiển thị "Chưa nhận dạng chữ" như thể chưa từng bấm gì.
+        assertEquals(OcrStatus.FAILED, repository.getDocument(DOC_ID)?.ocrStatus)
+    }
+
+    @Test
+    fun `tài liệu không có trang nào thì trả về 0 mà không gọi engine`() = runTest {
+        seedDocument(pageCount = 0)
+
+        val newlyRecognized = useCase(DOC_ID)
+
+        assertEquals(0, newlyRecognized)
+        assertEquals(0, engine.callCount)
+    }
+
+    @Test
+    fun `tài liệu không tồn tại thì từ chối trước khi gọi engine`() = runTest {
+        val result = runCatching { useCase("khong-co") }
+
+        assertTrue(result.exceptionOrNull() is DocumentNotFoundException)
+        assertEquals(0, engine.callCount)
+    }
+
+    @Test
+    fun `lỗi đọc dữ liệu không phải lỗi OCR thì vẫn ném ra ngoài`() = runTest {
+        seedDocument(pageCount = 1)
+        repository.failGetPages = true
+
+        val result = runCatching { useCase(DOC_ID) }
+
+        // Lỗi hạ tầng phải lộ ra, không được nuốt thành "không tìm thấy chữ".
+        assertNotNull(result.exceptionOrNull())
+        assertTrue(result.exceptionOrNull() !is OcrFailedException)
+    }
+
+    /** Tạo tài liệu thật trong database giả, kèm file ảnh thật trên đĩa. */
+    private suspend fun seedDocument(pageCount: Int) {
+        val pages = (1..pageCount).map { index ->
+            NewDocumentPage(
+                relativePath = path(index),
+                width = 1240,
+                height = 1754,
+                sizeBytes = 1,
+            )
+        }
+        repository.createDocument(DOC_ID, TITLE, pages)
+        pages.forEachIndexed { offset, page ->
+            storage.writePageImage(
+                documentId = DOC_ID,
+                pageIndex = offset + 1,
+                jpegBytes = byteArrayOf(1, 2, 3),
+            )
+        }
+    }
+
+    private fun ocrPage(pageIndex: Int) = vn.scanviet.app.domain.model.OcrText(
+        documentId = DOC_ID,
+        pageIndex = pageIndex,
+        lines = listOf(
+            vn.scanviet.app.domain.model.StoredOcrLine(
+                text = "chữ cũ",
+                left = 0.1f,
+                top = 0.1f,
+                right = 0.5f,
+                bottom = 0.2f,
+            ),
+        ),
+        imageWidth = 1240,
+        imageHeight = 1754,
+    )
+
+    private fun path(index: Int): String = "documents/$DOC_ID/page_%04d.jpg".format(index)
+
+    private suspend fun <T> kotlinx.coroutines.flow.Flow<T>.firstValue(): T = first()
+
+    private companion object {
+        const val DOC_ID = "doc-ocr"
+        const val TITLE = "Hợp đồng thuê nhà"
+    }
+}

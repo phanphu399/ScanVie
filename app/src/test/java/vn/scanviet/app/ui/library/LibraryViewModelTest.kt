@@ -16,6 +16,7 @@ import org.junit.Test
 import vn.scanviet.app.R
 import vn.scanviet.app.domain.usecase.RenameDocumentUseCase
 import vn.scanviet.app.testing.FakeDocumentRepository
+import vn.scanviet.app.testing.FakePageImageLoader
 import vn.scanviet.app.testing.testDocument
 
 /**
@@ -43,6 +44,7 @@ class LibraryViewModelTest {
         viewModel = LibraryViewModel(
             repository = repository,
             renameDocument = RenameDocumentUseCase(repository),
+            thumbnailLoader = FakePageImageLoader(),
         )
     }
 
@@ -71,7 +73,7 @@ class LibraryViewModelTest {
             assertTrue(state is LibraryUiState.Documents)
             assertEquals(
                 listOf("doc-2", "doc-1"),
-                (state as LibraryUiState.Documents).documents.map { it.id },
+                (state as LibraryUiState.Documents).items.map { it.document.id },
             )
             cancelAndIgnoreRemainingEvents()
         }
@@ -91,7 +93,7 @@ class LibraryViewModelTest {
             assertTrue(state is LibraryUiState.Documents)
             assertEquals(
                 listOf("doc-1"),
-                (state as LibraryUiState.Documents).documents.map { it.id },
+                (state as LibraryUiState.Documents).items.map { it.document.id },
             )
             cancelAndIgnoreRemainingEvents()
         }
@@ -120,10 +122,10 @@ class LibraryViewModelTest {
             awaitSettled()
 
             viewModel.onQueryChange("hoa don")
-            assertEquals(1, (awaitSettled() as LibraryUiState.Documents).documents.size)
+            assertEquals(1, (awaitSettled() as LibraryUiState.Documents).items.size)
 
             viewModel.onQueryChange("")
-            assertEquals(2, (awaitSettled() as LibraryUiState.Documents).documents.size)
+            assertEquals(2, (awaitSettled() as LibraryUiState.Documents).items.size)
 
             cancelAndIgnoreRemainingEvents()
         }
@@ -162,7 +164,7 @@ class LibraryViewModelTest {
             val state = awaitSettled()
             assertEquals(
                 "Tên mới",
-                (state as LibraryUiState.Documents).documents.first().title,
+                (state as LibraryUiState.Documents).items.first().document.title,
             )
             cancelAndIgnoreRemainingEvents()
         }

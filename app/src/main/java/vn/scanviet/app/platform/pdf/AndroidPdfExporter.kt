@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import java.io.IOException
 import java.io.OutputStream
@@ -16,6 +17,7 @@ import kotlinx.coroutines.withContext
 import vn.scanviet.app.core.DispatcherProvider
 import vn.scanviet.app.domain.export.PdfExporter
 import vn.scanviet.app.domain.export.PdfPageSource
+import vn.scanviet.app.domain.export.PdfTextLine
 
 /**
  * Sinh PDF bằng `android.graphics.pdf.PdfDocument` có sẵn trong Android.
@@ -115,12 +117,68 @@ class AndroidPdfExporter @Inject constructor(
                     PAINT,
                 )
                 canvas.restore()
+
+                // Lớp chữ ẩn vẽ SAU ảnh, trên cùng hệ toạ độ đích, nên không bị ảnh che.
+                // Phải nằm ngoài khối save/rotate vì toạ độ chữ đã theo ảnh SAU khi xoay.
+                drawInvisibleTextLayer(
+                    canvas = canvas,
+                    lines = source.textLines,
+                    target = RectF(left, top, left + drawWidth, top + drawHeight),
+                )
             } finally {
                 finishPage(page)
             }
         } finally {
             // Giải phóng pixel ngay: chỉ giữ một trang trong RAM tại một thời điểm.
             bitmap.recycle()
+        }
+    }
+
+    /**
+     * Vẽ lớp chữ CHÌM lên ảnh để PDF tìm kiếm và copy được.
+     *
+     * Ba điều chỉnh quan trọng, mỗi cái để tránh một lỗi có thật:
+     *
+     * 1. **Alpha = 1 chứ không phải 0.** `PdfDocument` BỎ QUA hoàn toàn lệnh vẽ có alpha 0
+     *    khi ghi PDF — lớp chữ sẽ biến mất và tính năng copy hỏng trong im lặng. Alpha 1
+     *    là mức trong suốt tối thiểu mà lệnh vẽ vẫn được ghi lại.
+     *
+     * 2. **Cỡ chữ suy ra từ chiều cao hình bao, không cố định.** Chữ phải nằm gọn trong
+     *    đúng ô của nó, nếu không khi bôi đen sẽ chọn nhầm sang dòng khác. Chiều cao hình
+     *    bao chia cho ~1.3 (khoảng cách dòng điển hình của font) là ước lượng cỡ chữ hợp lý.
+     *
+     * 3. **`textScaleX` kéo chữ vừa khít chiều rộng hình bao.** Font hệ thống không cùng
+     *    số đo với font của tài liệu gốc; không bù lại thì vị trí chọn chữ trôi dần về
+     *    cuối dòng. Đo chiều rộng thật của chuỗi rồi chia cho chiều rộng cần có là cách
+     *    hiệu chỉnh đơn giản và chính xác.
+     */
+    private fun drawInvisibleTextLayer(canvas: Canvas, lines: List<PdfTextLine>, target: RectF) {
+        if (lines.isEmpty()) return
+        val textWidth = target.width()
+        val textHeight = target.height()
+        if (textWidth <= 0f || textHeight <= 0f) return
+
+        lines.forEach { line ->
+            val boxWidth = (line.right - line.left) * textWidth
+            val boxHeight = (line.bottom - line.top) * textHeight
+            if (line.text.isBlank() || boxWidth <= 0f || boxHeight <= 0f) return@forEach
+
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK
+                // Xem chú thích (1) ở trên: 0 sẽ khiến PdfDocument bỏ luôn lệnh vẽ.
+                alpha = INVISIBLE_TEXT_ALPHA
+                textSize = (boxHeight / LINE_HEIGHT_FACTOR).coerceAtLeast(MIN_TEXT_SIZE_PT)
+                typeface = Typeface.DEFAULT
+            }
+            val measured = paint.measureText(line.text)
+            if (measured <= 0f) return@forEach
+            // Xem chú thích (3): kéo giãn chữ cho khớp bề rộng nhận dạng được.
+            paint.textScaleX = (boxWidth / measured).coerceIn(MIN_TEXT_SCALE_X, MAX_TEXT_SCALE_X)
+
+            val x = target.left + line.left * textWidth
+            // Baseline nằm dưới mép trên hình bao một khoảng bằng phần "ascender" của font.
+            val y = target.top + line.top * textHeight + boxHeight * BASELINE_RATIO
+            canvas.drawText(line.text, x, y, paint)
         }
     }
 
@@ -168,6 +226,24 @@ class AndroidPdfExporter @Inject constructor(
          */
         const val MAX_RENDER_WIDTH = 1654
         const val MAX_RENDER_HEIGHT = 2339
+
+        /**
+         * Độ trong suốt của lớp chữ. 1/255 là mức nhỏ nhất mà `PdfDocument` vẫn ghi lệnh vẽ
+         * xuống file (alpha 0 bị bỏ qua hoàn toàn). Trên màn hình gần như không thấy.
+         */
+        const val INVISIBLE_TEXT_ALPHA = 1
+
+        /** Tỉ lệ chiều cao dòng / cỡ chữ của font mặc định. Dùng để suy cỡ chữ từ hình bao. */
+        const val LINE_HEIGHT_FACTOR = 1.3f
+
+        /** Vị trí đường chân chữ trong hình bao (theo tỉ lệ chiều cao). */
+        const val BASELINE_RATIO = 0.8f
+
+        const val MIN_TEXT_SIZE_PT = 1f
+
+        /** Chặn kéo giãn vô lý khi hình bao bị nhận dạng sai (quá hẹp hoặc quá rộng). */
+        const val MIN_TEXT_SCALE_X = 0.05f
+        const val MAX_TEXT_SCALE_X = 20f
 
         private val PAINT = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             isFilterBitmap = true

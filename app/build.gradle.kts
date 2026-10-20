@@ -17,10 +17,38 @@ android {
         applicationId = "vn.scanviet.app"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Nơi phát hành bản cập nhật.
+        //
+        // Vì sao để trong build config chứ không viết thẳng trong code: khi chuyển sang phát
+        // hành qua Google Play, chỉ cần đổi hai giá trị này (hoặc đổi hẳn nguồn) mà không phải
+        // sửa logic nghiệp vụ. Cũng tránh việc mỗi môi trường build lại phải sửa nhiều file.
+        //
+        // PHẢI KHỚP với `git remote -v`. Kiểm chứng ngày 20/10/2026:
+        //   origin  https://github.com/phanphu399/ScanVie.git
+        // Nếu đổi tên repo trên GitHub, cập nhật cả hai giá trị này, nếu không ứng dụng sẽ gọi
+        // một URL không tồn tại và cơ chế tự cập nhật hỏng trong im lặng.
+        buildConfigField("String", "RELEASE_OWNER", "\"phanphu399\"")
+        buildConfigField("String", "RELEASE_REPOSITORY", "\"ScanVie\"")
+
+        ndk {
+            // Chỉ đóng gói thư viện native cho hai kiến trúc ARM.
+            //
+            // Vì sao: ML Kit nhận dạng chữ mang theo thư viện native
+            // `libmlkit_google_ocr_pipeline.so` nặng ~11 MB MỖI kiến trúc, và mô hình ngôn ngữ
+            // (~25 MB) đi kèm. Đóng gói cả bốn kiến trúc làm APK phình từ ~12 MB lên ~54 MB.
+            //
+            // `x86` và `x86_64` chỉ tồn tại trên trình giả lập và một số máy tính bảng cũ.
+            // Điện thoại Android thật gần như 100% là ARM. Bỏ hai kiến trúc đó tiết kiệm
+            // khoảng 22 MB mà không ảnh hưởng người dùng thật.
+            //
+            // Đánh đổi đã biết: ứng dụng KHÔNG cài được trên trình giả lập x86.
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     buildTypes {
@@ -101,9 +129,22 @@ dependencies {
     // không do SDK này lo.
     implementation(libs.mlkit.document.scanner)
 
+    // Giai đoạn 3: nhận dạng chữ ngay trên thiết bị, chạy được ngoại tuyến (mô hình nằm
+    // trong APK). KHÔNG gửi ảnh hay văn bản lên máy chủ nào.
+    //
+    // ⚠️ ĐÍNH CHÍNH: artifact này KHÔNG hỗ trợ tiếng Việt có dấu. Text Recognition v2 chỉ
+    // có 5 hệ chữ (Latin, Chinese, Devanagari, Japanese, Korean); mô hình đóng gói thật là
+    // `Latn_ctc`, nó bỏ dấu hoặc trả chuỗi rỗng với văn bản tiếng Việt.
+    // Xem MVP_SPEC.md §2.5. Phải thay engine trước khi quảng cáo tính năng.
+    // Cổng `domain/ocr/OcrEngine` đã tách sẵn nên việc thay engine không đụng tới Room,
+    // ViewModel hay PDF exporter — chỉ thay `platform/ocr/MlKitOcrEngine`.
+    implementation(libs.mlkit.text.recognition)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core.ktx)
+    // `org.json` nằm trong Android framework nhưng không có trên JVM. Chỉ test cần.
+    testImplementation(libs.json)
 }

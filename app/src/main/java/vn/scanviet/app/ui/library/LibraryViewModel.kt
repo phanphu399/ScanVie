@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import vn.scanviet.app.domain.model.Document
+import vn.scanviet.app.domain.image.PageImageLoader
 import vn.scanviet.app.domain.repository.DocumentRepository
 import vn.scanviet.app.domain.usecase.RenameDocumentUseCase
 import vn.scanviet.app.ui.common.UiMessage
@@ -27,6 +28,8 @@ import vn.scanviet.app.ui.common.toUiMessage
 class LibraryViewModel @Inject constructor(
     private val repository: DocumentRepository,
     private val renameDocument: RenameDocumentUseCase,
+    /** Chỉ để màn hình nạp ảnh thu nhỏ; ViewModel không tự dùng. */
+    val thumbnailLoader: PageImageLoader,
 ) : ViewModel() {
 
     private val queryState = MutableStateFlow("")
@@ -48,11 +51,12 @@ class LibraryViewModel @Inject constructor(
         combine(queryState, retryTrigger) { currentQuery, _ -> currentQuery }
             .flatMapLatest { currentQuery ->
                 repository.observeDocuments(currentQuery)
-                    .map<List<Document>, LibraryUiState> { documents ->
-                        if (documents.isEmpty()) {
+                    .map<List<Document>, List<LibraryItem>> { documents -> documents.toLibraryItems() }
+                    .map<List<LibraryItem>, LibraryUiState> { items ->
+                        if (items.isEmpty()) {
                             LibraryUiState.NoResult
                         } else {
-                            LibraryUiState.Documents(documents)
+                            LibraryUiState.Documents(items)
                         }
                     }
                     // Chỉ hiện Loading khi thật sự chưa có dữ liệu nào được phát ra.
@@ -64,6 +68,23 @@ class LibraryViewModel @Inject constructor(
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
                 initialValue = LibraryUiState.Loading,
             )
+
+    /**
+     * Ghép mỗi tài liệu với đường dẫn ảnh trang đầu của nó.
+     *
+     * Vì sao tra cứu đường dẫn SAU khi đã có danh sách: số dòng hiển thị chỉ vài chục, nên
+     * tra cứu theo lô là một truy vấn nhỏ. Nếu hỏi ngay lúc quan sát thì mỗi lần tên tài liệu
+     * đổi (đổi tên, đổi thời gian) cũng kéo theo truy vấn ảnh vô ích.
+     *
+     * Lỗi khi tra cứu không được làm hỏng danh sách: `runCatching` trả về danh sách không có
+     * ảnh thu nhỏ. Người dùng vẫn thấy và mở được tài liệu — mất ảnh nhỏ là chuyện nhỏ so
+     * với mất cả danh sách.
+     */
+    private suspend fun List<Document>.toLibraryItems(): List<LibraryItem> {
+        val paths = runCatching { repository.firstPagePaths(map { it.id }) }
+            .getOrDefault(emptyMap())
+        return map { document -> LibraryItem(document, firstPagePath = paths[document.id]) }
+    }
 
     fun onQueryChange(newQuery: String) {
         queryState.value = newQuery

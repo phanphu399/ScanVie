@@ -9,6 +9,7 @@ import vn.scanviet.app.domain.model.Document
 import vn.scanviet.app.domain.model.DocumentPage
 import vn.scanviet.app.domain.model.NewDocumentPage
 import vn.scanviet.app.domain.model.OcrStatus
+import vn.scanviet.app.domain.model.OcrText
 import vn.scanviet.app.domain.repository.DocumentRepository
 
 /**
@@ -25,6 +26,9 @@ class FakeDocumentRepository : DocumentRepository {
 
     /** Bật lên để mô phỏng lỗi ghi database (dùng để kiểm tra việc dọn file rác). */
     var failCreate: Boolean = false
+
+    /** Bật lên để mô phỏng lỗi đọc danh sách trang (lỗi hạ tầng, không phải lỗi OCR). */
+    var failGetPages: Boolean = false
 
     /**
      * Ghi đè `pageIndex` khi tạo trang, mô phỏng database bị lệch thứ tự.
@@ -69,7 +73,11 @@ class FakeDocumentRepository : DocumentRepository {
         documentsState.map { documents -> documents.firstOrNull { it.id == documentId } }
 
     override fun observePages(documentId: String): Flow<List<DocumentPage>> =
-        pagesState.map { pages -> pages[documentId].orEmpty() }
+        if (failGetPages) {
+            flow { throw IllegalStateException("lỗi đọc danh sách trang") }
+        } else {
+            pagesState.map { pages -> pages[documentId].orEmpty() }
+        }
 
     override fun observeActiveSizeBytes(): Flow<Long> =
         documentsState.map { documents ->
@@ -82,13 +90,47 @@ class FakeDocumentRepository : DocumentRepository {
     override suspend fun getDocuments(): List<Document> =
         documentsState.value.filter { it.deletedAtMillis == null }
 
-    override suspend fun getPages(documentId: String): List<DocumentPage> =
-        pagesState.value[documentId].orEmpty()
+    override suspend fun getPages(documentId: String): List<DocumentPage> {
+        if (failGetPages) throw IllegalStateException("lỗi đọc danh sách trang")
+        return pagesState.value[documentId].orEmpty()
+    }
+
+    var firstPagePathsResult: Map<String, String> = emptyMap()
+
+    override suspend fun firstPagePaths(documentIds: List<String>): Map<String, String> =
+        firstPagePathsResult.ifEmpty {
+            documentIds.associateWith { id ->
+                pagesState.value[id].orEmpty().minByOrNull { it.pageIndex }?.imageFile
+            }.filterValues { it != null }.mapValues { it.value!! }
+        }
 
     override suspend fun getAllDocumentIds(): Set<String> =
         documentsState.value.map { it.id }.toSet()
 
-    override suspend fun countMissingPageFiles(documentId: String): Int = 0
+    /** Trang được đánh dấu thiếu ảnh, dùng để dựng cảnh báo trong test. */
+    var missingPageIndicesResult: Set<Int> = emptySet()
+
+    override suspend fun missingPageIndices(documentId: String): Set<Int> = missingPageIndicesResult
+
+    private val ocrTextState = MutableStateFlow<Map<String, List<OcrText>>>(emptyMap())
+
+    /** Ghi đè trực tiếp kết quả OCR, dùng để dựng trạng thái "đã nhận dạng" trong test. */
+    fun seedOcrText(documentId: String, pages: List<OcrText>) {
+        ocrTextState.value = ocrTextState.value + (documentId to pages)
+    }
+
+    override fun observeOcrText(documentId: String): Flow<List<OcrText>> =
+        ocrTextState.map { it[documentId].orEmpty() }
+
+    override suspend fun setOcrStatus(documentId: String, status: OcrStatus) {
+        documentsState.value = documentsState.value.map { document ->
+            if (document.id == documentId) document.copy(ocrStatus = status) else document
+        }
+    }
+
+    override suspend fun replaceOcrText(documentId: String, pages: List<OcrText>) {
+        ocrTextState.value = ocrTextState.value + (documentId to pages)
+    }
 
     override suspend fun createDocument(
         documentId: String,
