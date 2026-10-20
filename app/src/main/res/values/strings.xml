@@ -136,6 +136,23 @@
     <string name="settings_auto_ocr_label">Tự động nhận dạng chữ sau khi quét</string>
     <string name="settings_auto_ocr_hint">Nhận dạng chạy trên thiết bị. Tài liệu không được gửi lên máy chủ.</string>
     <string name="settings_keep_original_label">Giữ lại ảnh gốc chưa chỉnh màu</string>
+
+    <!--
+      Nhận dạng chữ (OCR). Lưu ý về nội dung: ML Kit KHÔNG đọc được tiếng Việt có dấu, nên
+      phần mô tả phải nói rõ điều đó thay vì để người dùng tự phát hiện chữ bị mất dấu.
+    -->
+    <string name="settings_section_ocr">Nhận dạng chữ</string>
+    <string name="settings_ocr_engine_label">Bộ nhận dạng</string>
+    <string name="settings_ocr_engine_tesseract">Tesseract — đọc được tiếng Việt có dấu</string>
+    <string name="settings_ocr_engine_tesseract_hint">Chạy hoàn toàn trên thiết bị, không cần mạng. Đây là lựa chọn đúng cho tài liệu tiếng Việt.</string>
+    <string name="settings_ocr_engine_mlkit">ML Kit — chỉ dùng cho tài liệu tiếng Anh</string>
+    <string name="settings_ocr_engine_mlkit_hint">Không đọc được tiếng Việt có dấu (sẽ bỏ dấu hoặc trả về chữ trống). Chỉ chọn khi tài liệu của bạn là tiếng Anh in rõ.</string>
+    <string name="settings_ocr_quality_label">Chất lượng nhận dạng tiếng Việt</string>
+    <string name="settings_ocr_quality_best">Chính xác nhất (chiếm ~12 MB)</string>
+    <string name="settings_ocr_quality_best_hint">Đọc tốt hơn với chữ nhỏ và ảnh chụp chưa lý tưởng.</string>
+    <string name="settings_ocr_quality_fast">Nhanh (chiếm ~0,5 MB)</string>
+    <string name="settings_ocr_quality_fast_hint">Chạy nhanh hơn, nhẹ hơn, vẫn giữ được dấu tiếng Việt nhưng kém chính xác hơn với chữ nhỏ.</string>
+
     <string name="settings_section_data">Dữ liệu</string>
     <string name="settings_storage_label">Dung lượng tài liệu đã dùng</string>
     <string name="settings_open_trash">Mở thùng rác</string>

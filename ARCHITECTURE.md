@@ -142,11 +142,13 @@ Toạ độ lưu **chuẩn hoá 0..1** so với ảnh gốc, kèm `imageWidth`/`
 ## 4. DataStore — chìa khoá cài đặt
 
 ```
--- Đã code (Giai đoạn 1 → 4)
+-- Đã code (Giai đoạn 1 → B)
 theme            = system | light | dark
 autoOcr          = Boolean            (OCR ngay sau khi scan hay để người dùng bấm)
 keepOriginal     = Boolean            (giữ ảnh gốc chưa filter)
 checkForUpdates  = Boolean            (mặc định TRUE — tự kiểm tra bản cập nhật khi mở Cài đặt)
+ocr_engine       = tesseract | ml_kit (mặc định tesseract — engine duy nhất đọc được tiếng Việt có dấu)
+ocr_model        = best | fast        (mặc định best; chỉ áp dụng khi ocr_engine = tesseract)
 
 -- Chưa làm (đúng phạm vi)
 language         = vi | en            (v1 chỉ có tiếng Việt)
@@ -188,18 +190,29 @@ Cài đặt thật: `platform/pdf/AndroidPdfExporter` (dùng `android.graphics.p
 
 ## 5b. Nhận dạng chữ (OCR) — cổng, lưu trữ, và trạng thái thật
 
-> **Trạng thái: khung kỹ thuật đã code xong (Giai đoạn 3). Chất lượng chữ tiếng Việt: CHƯA ĐẠT** — xem `MVP_SPEC.md` §2.5.
+> **Trạng thái: engine đúng đã tích hợp (Giai đoạn B) — Tesseract + `vie.traineddata` là mặc định. Chất lượng chữ tiếng Việt trên ảnh thật: CHƯA ĐO ĐƯỢC** — xem `MVP_SPEC.md` §2.5 và §6.2.
 
 Cổng thuần Kotlin ở `domain/ocr/`:
 
 ```
-OcrEngine.recognize(relativePath: String): OcrText
+OcrEngine.recognize(relativePath: String): OcrText       <- cổng cơ bản
+TesseractOcrEnginePort : OcrEngine                       <- + forModel(dir, quality)
+MlKitOcrEnginePort     : OcrEngine                       <- không cần cấu hình
+IdentifiedOcrEngine    : có `kind: OcrEngineKind`
+OcrEngineProvider.forKind(kind, quality): OcrEngine       <- chọn engine theo cài đặt
+TessdataProvisioner.ensureInstalled(quality): File        <- cổng cài model
 OcrText = List<OcrBlock>, mỗi block có text + hộp bao + danh sách dòng
 ```
 
-`domain/` **không** biết ML Kit: engine nhận **đường dẫn tương đối** (nhất quán với `imageFile` trong Room) và trả dữ liệu thuần Kotlin, không trả `Bitmap` hay kiểu của ML Kit. Cài đặt thật ở `platform/ocr/MlKitOcrEngine`.
+`domain/` **không** biết ML Kit hay `TessBaseAPI`: engine nhận **đường dẫn tương đối** (nhất quán với `imageFile` trong Room) và trả dữ liệu thuần Kotlin, không trả `Bitmap` hay kiểu của SDK nào. Cài đặt thật ở `platform/ocr/MlKitOcrEngine` và `platform/ocr/TesseractOcrEngine`.
 
-**Vì sao đây là thiết kế quan trọng:** engine hiện tại (`MlKitOcrEngine`) sẽ bị thay. Vì đã tách cổng, thay engine **không đụng** tới Room, ViewModel, hay `AndroidPdfExporter`. Đó chính là lợi ích cụ thể của Clean Architecture trong dự án này, không phải lý thuyết.
+**Vì sao có nhiều cổng thay vì một:** hai engine cần **cấu hình khác nhau**. Tesseract phải được trỏ tới file model và chất lượng model; ML Kit không cần gì (model nằm trong APK). Nếu gộp thành một interface duy nhất có `forModel`, ML Kit sẽ phải nhận tham số nó không dùng, và `FakeOcrEngine` trong test phải giả lập cả việc giải nén file. `OcrEngineProvider` là chỗ **duy nhất** biết sự khác biệt đó.
+
+**Vì sao `TessdataProvisioner` là cổng riêng:** việc giải nén 12 MB từ `assets/` ra đĩa là **I/O file**, không phải nhận dạng chữ. Gộp chung vào `OcrEngine` sẽ khiến một interface về nhận dạng phải gánh thêm trách nhiệm cài đặt, và làm test luồng nhận dạng phải giả lập việc giải nén.
+
+**Vì sao đây là thiết kế quan trọng:** cài đặt thật ở Giai đoạn B đã chứng minh điều này — thêm Tesseract chỉ cần thêm file trong `platform/ocr/` và sửa `OcrModule`, **không sửa một dòng nào** trong Room, ViewModel, PDF exporter, hay luồng quét. Đó chính là lợi ích cụ thể của Clean Architecture trong dự án này, không phải lý thuyết.
+
+**Vì sao `NormalizedOcrLine` nằm ở `domain/` chứ không ở `platform/`:** phép chuyển hộp bao pixel → toạ độ tỉ lệ quyết định lớp chữ ẩn trong PDF có vẽ được hay không, nhưng bản thân nó không liên quan tới Tesseract. Đặt ở `domain/` nghĩa là nó **kiểm thử được trên JVM thuần**. Điều này đã trả giá trị ngay: một phiên bản đầu trả `bottom = 0f` cho mọi dòng, làm **toàn bộ chữ biến mất khỏi PDF** mà không có lỗi nào — 12 test ở `NormalizedOcrLineTest` giờ chặn lỗi đó, và đã kiểm chứng bằng cách cố tình tái tạo lỗi (6/12 test gãy).
 
 **Vì sao lưu chữ theo dòng với toạ độ chuẩn hoá** (chứ không lưu cả trang thành một khối text):
 
@@ -209,7 +222,9 @@ OcrText = List<OcrBlock>, mỗi block có text + hộp bao + danh sách dòng
 
 **Trang đã nhận dạng mà không có chữ vẫn được ghi**, để phân biệt "trang trắng" với "trang chưa xử lý". Nếu không ghi, mỗi lần xuất PDF app lại chạy lại nhận dạng trang trắng đó — chậm mà vô ích.
 
-> 🔴 **Cảnh báo kỹ thuật quan trọng nhất của phần này:** model thật nằm trong APK là `Latn_ctc` (đã kiểm chứng bằng cách đọc entry `assets/mlkit-google-ocr-models/.../Latn_ctc/optical/conv_model.fb` trong APK release). Nó **bỏ dấu** hoặc trả chuỗi rỗng với tiếng Việt. Không sửa được bằng cấu hình — phải thay engine. Vì vậy `RecognizeDocumentTextUseCaseTest` dùng **engine giả**: nó chứng minh **luồng nghiệp vụ** (bỏ qua trang đã xử lý, một trang lỗi không phá cả tài liệu, ghi đúng toạ độ chuẩn hoá, huỷ giữa chừng không ghi dở), **không** chứng minh chất lượng nhận dạng.
+> 🟡 **Cảnh báo kỹ thuật quan trọng nhất của phần này:** model ML Kit nằm trong APK là `Latn_ctc` (đã kiểm chứng bằng cách đọc entry `assets/mlkit-google-ocr-models/.../Latn_ctc/optical/conv_model.fb` trong APK release). Nó **bỏ dấu** hoặc trả chuỗi rỗng với tiếng Việt, và **không sửa được bằng cấu hình**. Vì vậy mặc định đã chuyển sang **Tesseract + `vie.traineddata`** (Giai đoạn B, §2.5), và ML Kit chỉ còn là lựa chọn người dùng phải **chủ động bật**, kèm cảnh báo ngay trên màn hình Cài đặt.
+>
+> `RecognizeDocumentTextUseCaseTest` dùng **engine giả**: nó chứng minh **luồng nghiệp vụ** (bỏ qua trang đã xử lý, một trang lỗi không phá cả tài liệu, ghi đúng toạ độ chuẩn hoá, chọn engine theo cài đặt) và **không** chứng minh chất lượng nhận dạng. `AssetTessdataProvisionerTest` dùng **file model thật** qua `AssetManager` của Robolectric, nên chứng minh được việc giải nén. Nhưng **chất lượng chữ đọc ra trên ảnh chụp thực tế thì chưa có phép đo nào** — xem `MVP_SPEC.md` §6.2.
 
 ---
 
@@ -327,7 +342,7 @@ Mặc định Android **tự động backup dữ liệu app lên Google Drive c�
 - **`:core:model`** — Kotlin thuần, không có Android SDK: `Document`, `Page`, `OcrResult`. Test chạy mili-giây.
 - **`:core:data`** — nơi DUY NHẤT biết Room/DataStore/FileStore. Chứa `DocumentRepository`, `SettingsRepository`, `FileStore`, `BackupManager`. Feature chỉ nhìn thấy interface.
 - **`:platform:*`** — bọc SDK bên thứ ba (ML Kit, AdMob). Đổi vendor hoặc tách engine chỉ sửa ở đây.
-  - `:platform:scanner` (ML Kit Document Scanner), `:platform:ocr` (`OcrEngine` + impl ML Kit), `:platform:pdf`, `:platform:update` (`UpdateSource` GitHub + `ApkInstaller`), `:platform:ads` (tạo khi thật sự gắn quảng cáo — **không** tạo module rỗng).
+  - `:platform:scanner` (ML Kit Document Scanner), `:platform:ocr` (`OcrEngine` + impl ML Kit **và Tesseract** + `TessdataProvisioner`), `:platform:pdf`, `:platform:update` (`UpdateSource` GitHub + `ApkInstaller`), `:platform:ads` (tạo khi thật sự gắn quảng cáo — **không** tạo module rỗng).
 - **`:feature:*`** — chỉ Compose + ViewModel + use case của chính nó. Không truy cập Room trực tiếp, không depend feature khác. Mỗi feature expose 1 entry composable + route constant; `:app` là nơi ráp `NavHost`.
 - **`:app`** — chỉ wiring: `Application`, `MainActivity`, `NavHost`, DI gốc.
 
@@ -341,7 +356,7 @@ Mặc định Android **tự động backup dữ liệu app lên Google Drive c�
 :core:data            Room + DataStore + FileStore + Repository + Backup + image loader
 :core:testing         fake, fixture, helper test (chỉ dùng ở testImplementation)
 :platform:scanner     bọc ML Kit Document Scanner
-:platform:ocr         OcrEngine + ML Kit impl  (engine sẽ bị thay — xem §5b)
+:platform:ocr         OcrEngine + impl (Tesseract mặc định, ML Kit cho tiếng Anh)
 :platform:pdf         xuất PDF + lớp chữ ẩn
 :platform:update      UpdateSource (GitHub Releases) + ApkInstaller
 :feature:library      trang chủ + danh sách + tìm kiếm + chi tiết/đổi tên/xoá/thùng rác
@@ -409,7 +424,7 @@ Những gì đã chuẩn bị sẵn ở trên khiến việc thêm sync sau này
 | `deletedAt` (tombstone) | Không cần "hỏi server xem doc có bị xoá không" |
 | `remoteRev` (để trống) | Cột chống ghi đè; thêm sau vẫn được nhờ migration |
 | Đường dẫn tương đối | File di chuyển/đồng bộ không phá DB |
-| `ocrEngineVersion` | Máy khác engine → biết trang nào cần re-OCR. **Chưa thêm cột** — sẽ thêm cùng lúc với việc thay engine (§5b), vì lúc đó mới thật sự dùng |
+| `ocrEngineVersion` | Máy khác engine → biết trang nào cần re-OCR. **Vẫn chưa thêm cột** — Giai đoạn B đã làm cho engine **đổi được lúc chạy**, nên cột này trở nên cần thiết hơn trước. Hiện tại đổi engine **không** tự nhận dạng lại tài liệu cũ: chữ cũ vẫn giữ nguyên (và có thể đang thiếu dấu nếu được sinh bởi ML Kit). Đây là **hạn chế đã biết**, cần xử lý ở giai đoạn sau |
 | `formatVersion` trong backup | Định dạng dữ liệu có thể tiến hoá an toàn |
 
 Khi nào mới làm cloud: chỉ khi có người dùng thật hỏi "tôi đổi máy thì sao" **và** tính năng backup `.svbk` không đủ. Lúc đó vẫn không bắt đăng nhập để scan — sync là tuỳ chọn.
@@ -418,13 +433,16 @@ Khi nào mới làm cloud: chỉ khi có người dùng thật hỏi "tôi đổ
 
 ## 10. Kiểm thử cho phần lưu trữ (không bỏ qua)
 
-**Đã có (193 test / 0 lỗi / 21 suite — xem bảng đầy đủ ở `MVP_SPEC.md` §6.1):**
+**Đã có (234 test / 0 lỗi / 0 bỏ qua / 24 suite — xem bảng đầy đủ ở `MVP_SPEC.md` §6.1):**
 
 - `FileStore` (Robolectric, dùng thư mục tạm): save/move/delete, đổi tên không đụng tên file, doc bị thiếu file → báo lỗi đúng. → `LocalDocumentFileStorageTest` (15)
 - Room migration: `ScanVietDatabaseMigrationTest` (3) dựng schema v1 bằng **SQL thô** với đúng identity hash trong `1.json` rồi mở bằng v2. **Không dùng `room-testing`** — để tránh thêm dependency chỉ cho một test, và quan trọng hơn: dựng schema bằng SQL thô kiểm tra đúng thứ cần kiểm tra (dữ liệu cũ đọc được bằng schema mới), không kiểm tra lại định nghĩa do Room sinh ra. Test đã được chứng minh **thật sự bắt lỗi** (đổi tên bảng `ocr_lines` → 3/3 FAIL).
 - Repository trên Room thật + `filesDir` giả: `OfflineDocumentRepositoryTest` (16).
 - `ExportDocumentAsPdfUseCaseTest` (14): sắp trang theo `pageIndex`, thiếu ảnh → lỗi kèm số trang, stream đóng đúng một lần kể cả khi exporter lỗi, **lớp chữ ẩn gắn đúng trang**, trang chưa nhận dạng → xuất với lớp rỗng chứ không lỗi.
-- `RecognizeDocumentTextUseCaseTest` (11): **engine giả** — chứng minh luồng nghiệp vụ, không chứng minh chất lượng nhận dạng (xem §5b).
+- `RecognizeDocumentTextUseCaseTest` (17): **engine giả** — chứng minh luồng nghiệp vụ và **chọn engine theo cài đặt**, không chứng minh chất lượng nhận dạng (xem §5b).
+- `NormalizedOcrLineTest` (12): hàm thuần JVM, khoá hành vi toạ độ mà lớp chữ ẩn trong PDF phụ thuộc. **Đã kiểm chứng bằng cách cố tình tái tạo lỗi `bottom = 0f` → 6/12 test gãy.**
+- `AssetTessdataProvisionerTest` (9): dùng **file model thật** qua `AssetManager` của Robolectric — kiểm tra tên thư mục/tên file mà Tesseract tìm, vị trí `filesDir`, thay model khi đổi chất lượng, chỉ giữ một model.
+- `DataStoreSettingsRepositoryTest` (6): **DataStore thật** — khoá và định dạng giá trị của cài đặt engine; giá trị lạ → rơi về mặc định.
 - `GitHubReleaseSourceTest` (11), `CheckForUpdateUseCaseTest` (7), `VersionComparatorTest` (13), `UpdateUiStateTest` (5) — phần tự cập nhật.
 
 **Chưa có (đúng phạm vi):**

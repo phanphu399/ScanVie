@@ -4,7 +4,9 @@
 
 > Tài liệu thiết kế: [`PLAN.md`](PLAN.md) (định vị, KPI, lộ trình) · [`MVP_SPEC.md`](MVP_SPEC.md) (phạm vi đã chốt) · [`ARCHITECTURE.md`](ARCHITECTURE.md) (lưu trữ, schema, module) · [`AGENTS.md`](AGENTS.md) (quy tắc kỹ thuật bắt buộc).
 
-> 🔴 **Đọc trước nếu bạn quan tâm OCR tiếng Việt:** engine đang dùng (ML Kit Text Recognition v2) **không nhận dạng được tiếng Việt có dấu**. Đây là kết luận sau khi đọc tài liệu Google chính thức và kiểm tra model trong APK đã đóng gói, không phải phỏng đoán. Xem `MVP_SPEC.md` §2.5 để biết các phương án thay thế. **Không quảng cáo "OCR tiếng Việt" cho tới khi thay engine.**
+> 🟡 **Đọc trước nếu bạn quan tâm OCR tiếng Việt:** engine **Tesseract + `vie.traineddata`** đã được tích hợp và là **mặc định**, đây là engine đầu tiên ứng dụng có thể đọc tiếng Việt **có dấu**. ML Kit Text Recognition v2 vẫn còn nhưng **không đọc được tiếng Việt có dấu** — nó phải do người dùng chủ động chọn, kèm cảnh báo ngay trên màn hình Cài đặt.
+>
+> **Điều chưa biết:** chất lượng nhận dạng **thật** trên ảnh chụp thực tế là bao nhiêu. Chưa có phép đo nào trên ảnh thật. Xem `MVP_SPEC.md` §2.5 và §6.2. **Không quảng cáo "OCR tiếng Việt" cho tới khi có số đo.**
 
 ---
 
@@ -30,9 +32,9 @@
 - **Nhận dạng chữ** (Giai đoạn 3): nút "Nhận dạng chữ" trong màn chi tiết. Khi xuất PDF mà tài liệu chưa nhận dạng, ứng dụng **tự chạy nhận dạng trước**. Kết quả được lưu lại nên **không bao giờ chạy lại** cùng một trang. Trang đã nhận dạng mà không có chữ nào vẫn được ghi nhận (phân biệt "trang trắng" với "trang chưa xử lý").
 - **Tự kiểm tra và cập nhật** (Giai đoạn 4): app đọc bản phát hành mới nhất từ GitHub Releases và báo trong Cài đặt; bấm "Tải và cài đặt" thì tải APK rồi **mở trình cài đặt của hệ thống** (app không tự cài). Có công tắc tắt kiểm tra tự động. Kết quả kiểm tra lưu vào DataStore. Xem cảnh báo vận hành bên dưới.
 
-**Chưa có (đúng phạm vi, không phải lỗi):** OCR tiếng Việt **có dấu** (xem cảnh báo), tự cập nhật qua Google Play.
+**Chưa có (đúng phạm vi, không phải lỗi):** số đo chất lượng OCR tiếng Việt trên ảnh thật (xem cảnh báo ở trên), nhận dạng chữ qua đám mây (Cloud Vision), tự cập nhật qua Google Play.
 
-> 🔴 **Lớp chữ ẩn đã được vẽ, nhưng chất lượng chữ thì chưa đạt.** Phần kỹ thuật (vẽ chữ vô hình đúng vị trí, lưu toạ độ tỉ lệ, ghép đúng trang) đã xong và có test. Vấn đề nằm ở **engine sinh ra chữ**: ML Kit Text Recognition v2 không hỗ trợ tiếng Việt có dấu, nên chữ trong lớp ẩn sẽ **mất dấu hoặc rỗng**. Cần thay engine (`MVP_SPEC.md` §2.5) trước khi tính năng này dùng được thật.
+> 🟡 **Lớp chữ ẩn đã được vẽ, và engine giờ đọc được tiếng Việt có dấu — nhưng chất lượng thật chưa được đo.** Phần kỹ thuật (vẽ chữ vô hình đúng vị trí, lưu toạ độ tỉ lệ, ghép đúng trang) đã xong và có test. Toạ độ lấy ở mức dòng từ `ResultIterator` của Tesseract, và phép chuyển pixel → tỉ lệ được kiểm thử riêng (12 test, đã chứng minh bắt được lỗi cũ bằng cách cố tình tái tạo nó). Điều **chưa** biết là chữ đọc ra đúng bao nhiêu phần trăm trên ảnh chụp thực tế. Xem `MVP_SPEC.md` §6.2.
 
 > ⚠️ **Tự cập nhật qua GitHub Releases — hai điều kiện bắt buộc, đã kiểm chứng thực nghiệm:**
 > 1. **Repo phải public.** Với repo private, GitHub trả **404** cho người không có quyền. (Đã đo: `/repos/phanphu399/ScanVie` trả 404 khi còn private, 200 sau khi public.)
@@ -81,27 +83,37 @@ sdk.dir=C\:\\Users\\<tên-bạn>\\AppData\\Local\\Android\\Sdk
 
 Trên Windows dùng `gradlew.bat`. APK debug nằm ở `app/build/outputs/apk/debug/`.
 
-**Kết quả đã chạy thật (20/10/2026):** **193 unit test / 0 lỗi / 21 suite**.
+**Kết quả đã chạy thật (20/10/2026):** **234 unit test / 0 lỗi / 0 bỏ qua / 24 suite**.
 
 | Suite | Số test | Ghi chú |
 |---|---|---|
-| `ScanViewModelTest` | 17 | quét + lưu |
+| `RecognizeDocumentTextUseCaseTest` | 17 | **chọn engine theo cài đặt**, luồng nhận dạng (engine giả) |
+| `ScanViewModelTest` | 25 | quét + lưu + **tự động nhận dạng sau khi lưu** |
 | `OfflineDocumentRepositoryTest` | 16 | Room + file thật |
 | `LocalDocumentFileStorageTest` | 15 | ghi `.tmp` rồi đổi tên |
+| `ExportDocumentAsPdfUseCaseTest` | 14 | gồm **lớp chữ ẩn gắn đúng trang** |
 | `VersionComparatorTest` | 13 | **so sánh phiên bản** |
 | `LibraryViewModelTest` | 13 | danh sách/tìm kiếm/xoá |
-| `ExportDocumentAsPdfUseCaseTest` | 14 | gồm **lớp chữ ẩn gắn đúng trang** |
-| `GitHubReleaseSourceTest` | 11 | **đọc JSON GitHub Releases** |
-| `RecognizeDocumentTextUseCaseTest` | 11 | **luồng nhận dạng chữ** (engine giả) |
-| `DocumentDetailViewModelTest` | — | xuất/chia sẻ |
+| `NormalizedOcrLineTest` | 12 | **toạ độ Tesseract → tỉ lệ** (khoá lỗi chữ mất khỏi PDF) |
+| `GitHubReleaseSourceTest` | 12 | **đọc JSON GitHub Releases** |
+| `AssetTessdataProvisionerTest` | 9 | **giải nén model thật** qua `AssetManager` |
+| `PdfFileNamesTest` | 9 | tên file PDF an toàn |
+| `FormattersTest` | 9 | định dạng ngày/dung lượng |
+| `VnTextNormalizerTest` | 8 | tìm kiếm không dấu |
 | `CheckForUpdateUseCaseTest` | 7 | **nghiệp vụ cập nhật** |
 | `DocumentStorageMaintenanceTest` | 7 | dọn thùng rác/mồ côi |
+| `DataStoreSettingsRepositoryTest` | 6 | **lưu engine bằng DataStore thật** |
 | `ContentUriDocumentOutputTargetTest` | 5 | ghi đè đúng |
 | `UpdateUiStateTest` | 5 | **phần trăm tải** |
 | `ScanVietDatabaseMigrationTest` | 3 | **nâng cấp Room v1→v2** |
-| Còn lại | — | `PdfFileNamesTest`, `FormattersTest`, `VnTextNormalizerTest`, `CreateDocumentUseCaseTest`, `RenameDocumentUseCaseTest`, `RobolectricPdfLimitationTest` |
+| Còn lại | — | `DocumentDetailViewModelTest`, `CreateDocumentUseCaseTest`, `RenameDocumentUseCaseTest`, `ImportScannedDocumentUseCaseTest`, `RobolectricPdfLimitationTest` |
 
-Đối chiếu với lần chạy 140 test của Giai đoạn 2b: **+53 test**, đúng bằng phần thêm của Giai đoạn 3 (thư viện/xem trang/nhận dạng chữ) và Giai đoạn 4 (tự cập nhật).
+Đối chiếu với lần chạy 193 test trước Giai đoạn B: **+41 test**, tập trung vào phần mới: chọn engine theo cài đặt, toạ độ dòng từ Tesseract, giải nén model, lưu cài đặt, và tự động nhận dạng sau khi lưu.
+
+**Ba lỗi thật đã bắt được trong các lần chạy này:**
+1. `NormalizedOcrLineTest` — kiểm chứng bằng cách **cố tình tái tạo lỗi cũ** (`bottom = 0f`) thì **6/12 test gãy**. Nếu lỗi đó lọt ra bản phát hành, **toàn bộ chữ biến mất khỏi PDF** mà không có lỗi nào được báo.
+2. `DataStoreSettingsRepositoryTest` — 4/6 test gãy vì **lỗi ở chính test** (hai `DataStore` cùng mở một file). Đây là lỗi thiết kế test thật, đã sửa lại cho đúng ràng buộc một-DataStore của ứng dụng. Điều này cũng chứng minh bộ test chạy trên DataStore **thật**, không phải đồ giả.
+3. **Công tắc "Tự động nhận dạng chữ sau khi quét" là một điều khiển không hoạt động.** Nó được lưu vào cài đặt và hiển thị đúng, nhưng **không được đọc ở bất kỳ đâu** — bật hay tắt đều không thay đổi gì. Phát hiện khi rà lại toàn bộ luồng quét. Đã sửa: lưu xong thì nhận dạng chữ nếu công tắc bật, và **lỗi nhận dạng không làm mất tài liệu vừa lưu**. 8 test mới bảo vệ hành vi này; đã kiểm chứng bằng cách **cố tình bỏ phần gọi nhận dạng → 4 test gãy**.
 
 Một lỗi thật đã bắt được trong lần chạy này: test `VersionComparatorTest` phát hiện `VersionComparator` **im lặng coi `"v0.5.0"` là phiên bản 0**. Đã sửa **mã nguồn** (bỏ tiền tố `v`/`V` trong `parse`) chứ không sửa test cho qua — vì hậu quả của lỗi đó là ứng dụng **không bao giờ** báo có bản cập nhật, mà cũng không hề báo lỗi.
 
@@ -128,7 +140,7 @@ Bản release bật `isMinifyEnabled` + `isShrinkResources`. Công cụ tạo t�
 
 Các dòng đối chứng chứng minh cách tìm này không cho kết quả dương tính giả, nên kết luận "release không còn công cụ thử nghiệm" là đáng tin. Kích thước APK: debug 12,34 MB, release 2,14 MB *(số của Giai đoạn 2b)*.
 
-**Cập nhật 20/10/2026 (sau Giai đoạn 3 + 4):** debug **31,15 MB**, release **20,59 MB**. APK to lên là hệ quả trực tiếp của hai quyết định có chủ đích: (a) gói **hai ABI ARM** (`arm64-v8a` + `armeabi-v7a`) thay vì tất cả — đánh đổi là **không cài được lên emulator x86/x86_64**, và (b) thêm **mô hình OCR đóng gói sẵn** cùng native lib của ML Kit. Đã kiểm chứng phần tự cập nhật **sống sót qua R8** bằng cách tìm chuỗi trong `.dex`, kèm hai chuỗi đối chứng âm:
+**Cập nhật 20/10/2026 (sau Giai đoạn B — Tesseract):** debug **55,34 MB**, release **44,81 MB**. APK to lên là hệ quả trực tiếp của ba quyết định có chủ đích: (a) gói **hai ABI ARM** (`arm64-v8a` + `armeabi-v7a`) thay vì tất cả — đánh đổi là **không cài được lên emulator x86/x86_64**; (b) thêm **mô hình OCR đóng gói sẵn** cùng native lib của ML Kit; và (c) **hai file model tiếng Việt của Tesseract** (`vie_best` 11,86 MB + `vie_fast` 0,51 MB) cùng native lib Tesseract/Leptonica. Đã kiểm chứng phần tự cập nhật **sống sót qua R8** bằng cách tìm chuỗi trong `.dex`, kèm hai chuỗi đối chứng âm. Cũng đã kiểm chứng bằng `jar tf` rằng cả hai file model và cả hai ABI của `libtesseract.so`/`libleptonica.so` **thật sự có trong APK release**, không phải chỉ có trong thư mục nguồn.
 
 | Chuỗi cần tìm | Kết quả | Ý nghĩa |
 |---|---|---|
@@ -163,7 +175,8 @@ app/src/main/java/vn/scanviet/app/
 │                                   :core:domain/storage      (DocumentFileStorage - cổng)
 │                                   :core:domain/scan         (PageImageReader - cổng)
 │                                   :core:domain/export       (PdfExporter + DocumentOutputTarget - cổng)
-│                                   :core:domain/ocr          (OcrEngine - cổng)
+│                                   :core:domain/ocr          (OcrEngine, OcrEngineKind, OcrEngineProvider,
+│                                                               TessdataProvisioner, NormalizedOcrLine - cổng + logic thuần)
 │                                   :core:domain/update       (UpdateSource + VersionComparator - cổng)
 │                                   :core:domain/image        (PageImageLoader - cổng, trả DecodedImage)
 ├── data/         → :core:data      Room (entity/dao/database + Migration 1→2), DataStore,
@@ -171,7 +184,7 @@ app/src/main/java/vn/scanviet/app/
 │                                   export/, image/ (AndroidPageImageLoader + LRU cache),
 │                                   di/, dev/ (chỉ debug)
 ├── platform/     → :platform:*     scanner/ (DocumentScannerEngine + ML Kit impl + DI)
-│                                   ocr/     (OcrEngine thật + DI)
+│                                   ocr/     (MlKitOcrEngine, TesseractOcrEngine, AssetTessdataProvisioner + DI)
 │                                   pdf/     (PdfExporter thật + DI)
 │                                   update/  (GitHubReleaseSource + ApkInstaller + DI)
 ├── ui/           → :feature:*      theme, components, common, library, viewer, scan,
@@ -208,7 +221,20 @@ ScanScreen ──(bấm "Bắt đầu quét")──> ScanViewModel.onStartScan(a
                               3. từng URI: PageImageReader.read -> writePageImage
                               4. CreateDocumentUseCase (ghi Room)
                               5. lỗi ở bất kỳ bước nào -> xoá thư mục vừa tạo
+                                             │  (chỉ khi lưu THÀNH CÔNG)
+                                             ▼
+                                   ScanUiState.Saved(documentId)
+                                             │  nếu "Tự động nhận dạng" đang bật
+                                             ▼
+                                  RecognizeDocumentTextUseCase
+                                    - chạy SAU khi tài liệu đã lưu xong
+                                    - lỗi nhận dạng KHÔNG làm mất tài liệu
+                                    - lỗi nhận dạng KHÔNG đưa về màn hình xem lại
+                                      (nếu đưa về, người dùng bấm "Lưu" lần nữa
+                                       -> tạo tài liệu TRÙNG)
 ```
+
+**Vì sao nhận dạng chạy sau khi lưu:** nhận dạng chữ là bước *thêm giá trị*, không phải điều kiện để lưu thành công. Nếu nó thất bại, người dùng **vẫn có tài liệu** — mất chữ còn hơn mất cả tài liệu vừa quét công phu.
 
 Điểm cốt lõi: URI do trình quét trả về là **file tạm trong vùng của Play services**, có thể biến mất bất cứ lúc nào — nên phải sao chép **ngay** vào vùng riêng của app rồi mới làm gì khác.
 
@@ -243,7 +269,7 @@ Chia sẻ dùng `FileProvider` với authority `vn.scanviet.app.fileprovider`, c
 | Ảnh trang scan | `filesDir/documents/<uuid>/page_0001.jpg` | đường dẫn **tương đối** trong database |
 | Metadata tài liệu | Room `scanviet.db` | `exportSchema = true`, schema **v1 và v2** đã commit ở `app/schemas/` |
 | Chữ nhận dạng được | Room `ocr_pages` + `ocr_lines` (schema v2) | Toạ độ **tỉ lệ 0–1** so với ảnh gốc, nên lớp chữ không lệch khi khổ trang PDF đổi. Nâng cấp bằng `MIGRATION_1_2` tường minh — **không** `fallbackToDestructiveMigration`, dữ liệu cũ giữ nguyên |
-| Cài đặt | DataStore Preferences | chủ đề, OCR tự động, giữ ảnh gốc, **tự kiểm tra cập nhật** |
+| Cài đặt | DataStore Preferences | chủ đề, OCR tự động, giữ ảnh gốc, **tự kiểm tra cập nhật**, **engine nhận dạng chữ** (`ocr_engine`), **chất lượng model** (`ocr_model`) |
 | Vùng nháp khi scan | `cacheDir/scan_scratch/` | dọn sạch khi mở app |
 | PDF tạm để chia sẻ | `cacheDir/scan_scratch/<ten-tai-lieu>.pdf` | không lưu thêm bản trong app; do Android được phép dọn khi hết chỗ |
 | APK cập nhật tải về | `cacheDir/updates/scanviet-update.apk` | tên **cố định**, ghi đè mỗi lần tải; cache nên bị hệ thống xoá được bất cứ lúc nào — app tải lại khi cần |
@@ -275,24 +301,44 @@ Nguồn của từng quyền tra được ở `app/build/outputs/logs/manifest-m
 
 Cả hai đều **tắt được**: công tắc "Tự kiểm tra bản cập nhật" trong Cài đặt chặn lần gọi #1; lần gọi #2 chỉ xảy ra khi người dùng bấm nút. Ảnh, PDF và văn bản OCR **không bao giờ** rời khỏi thiết bị.
 
-### Luồng nhận dạng chữ và lớp chữ ẩn (Giai đoạn 3)
+### Luồng nhận dạng chữ và lớp chữ ẩn (Giai đoạn 3, mở rộng ở Giai đoạn B)
 
 ```
 DocumentDetailViewModel.onRecognizeText()  /  (tự chạy trước khi xuất PDF)
    │
    ▼
 RecognizeDocumentTextUseCase
-   1. lấy danh sách trang của tài liệu
-   2. bỏ qua trang ĐÃ nhận dạng (không chạy lại — tốn thời gian vô ích)
-   3. mỗi trang còn lại: OcrEngine.recognize(relativePath) -> OcrText
-        │
-        ├── platform/ocr/  (ML Kit Text Recognition v2)
-        └── test: FakeOcrEngine
-   4. ghi Room: 1 dòng ocr_pages (kèm imageWidth/imageHeight) + n dòng ocr_lines
+   1. tài liệu có tồn tại không  (không -> lỗi TRƯỚC khi bật trạng thái RUNNING)
+   2. lấy danh sách trang của tài liệu
+   3. bỏ qua trang ĐÃ nhận dạng (không chạy lại — tốn thời gian vô ích)
+   4. ĐỌC CÀI ĐẶT để chọn engine (không cố định lúc khởi tạo)
+         │
+         ▼
+      OcrEngineProvider.forKind(kind, quality)
+         ├── TESSERACT -> TessdataProvisioner.ensureInstalled(quality)   (giải nén model)
+         │                   └── TesseractOcrEngine.forModel(...)
+         └── ML_KIT    -> MlKitOcrEngine                                 (model có sẵn trong APK)
+   5. mỗi trang còn lại: engine.recognize(file, rotation) -> OcrPageResult
+   6. ghi Room: 1 dòng ocr_pages (kèm imageWidth/imageHeight) + n dòng ocr_lines
                  toạ độ chuẩn hoá 0..1
-   5. một trang lỗi KHÔNG làm hỏng cả tài liệu; trang không có chữ vẫn được ghi
+   7. một trang lỗi KHÔNG làm hỏng cả tài liệu; trang không có chữ vẫn được ghi
       (phân biệt "trang trắng" với "trang chưa xử lý")
 ```
+
+**Vì sao engine được chọn lúc chạy chứ không lúc khởi tạo:** người dùng đổi engine trong Cài đặt rồi bấm nhận dạng lại thì phải dùng engine mới **ngay**, không cần tắt mở ứng dụng. Đổi lại, mỗi lần nhận dạng phải đọc cài đặt — chi phí không đáng kể so với việc nhận dạng chính nó.
+
+**Vì sao lấy engine TRƯỚC khi bật `RUNNING`:** nếu model chưa cài được (hết chỗ, asset thiếu), lỗi được ném ra khi tài liệu **chưa** bị đánh dấu `RUNNING`. Nếu thứ tự bị đảo, giao diện sẽ kẹt ở trạng thái "đang nhận dạng" vĩnh viễn. Có test riêng cho điều này.
+
+#### Bốn chi tiết kỹ thuật của `TesseractOcrEngine`
+
+| Quyết định | Lý do |
+|---|---|
+| **Toạ độ ở mức DÒNG (`RIL_TEXTLINE`)** | `getUTF8Text()` không trả hộp bao, mà thiếu hộp bao thì lớp chữ ẩn trong PDF không vẽ được. Tesseract đã phân tích bố cục trang để quyết định từ nào thuộc dòng nào, nên đọc thẳng ở mức dòng đúng hơn là tự ghép từ bằng cách so chồng lấn hộp bao |
+| **`TessBaseAPI` được TÁI SỬ DỤNG** | Khởi tạo đọc model 12 MB từ đĩa và dựng cấu trúc nội bộ, tốn hàng trăm ms. Với tài liệu 20 trang, tạo mới mỗi trang cộng thêm hàng chục giây vô ích. Instance chỉ dựng lại khi **đổi model** |
+| **Mọi lời gọi bọc trong `Mutex`** | `TessBaseAPI` KHÔNG an toàn đa luồng. Dùng một instance chung và tuần tự hoá (thay vì một instance mỗi luồng) để không giữ thêm 12 MB model trong RAM cho mỗi luồng |
+| **Giải mã ở 2500px cạnh dài, `RGB_565`** | Tesseract dùng đặc trưng hình học của nét chữ nên cần chi tiết hơn ML Kit; ~210 DPI cho trang A4 đủ giữ dấu (dấu mũ, dấu hỏi, dấu nặng đều là nét nhỏ). `RGB_565` giảm nửa bộ nhớ ảnh mà không kém chính xác (Tesseract tự nhị phân hoá) |
+
+Phép chuyển hộp bao pixel → toạ độ tỉ lệ được tách ra `domain/ocr/NormalizedOcrLine.kt` — hàm thuần, kiểm thử được trên JVM, không cần thư viện native. Xem `NormalizedOcrLineTest` (12 test) ở bảng trên.
 
 Khi xuất PDF, `ExportDocumentAsPdfUseCase` đọc chữ đã lưu và chuyển thành lớp chữ **vô hình** vẽ đè lên ảnh:
 

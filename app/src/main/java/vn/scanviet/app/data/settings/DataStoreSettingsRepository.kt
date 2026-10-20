@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import vn.scanviet.app.domain.model.AppSettings
 import vn.scanviet.app.domain.model.ThemePreference
+import vn.scanviet.app.domain.ocr.OcrEngineKind
+import vn.scanviet.app.domain.ocr.OcrModelQuality
 import vn.scanviet.app.domain.repository.SettingsRepository
 
 @Singleton
@@ -32,6 +34,10 @@ class DataStoreSettingsRepository @Inject constructor(
                 autoOcr = preferences[Keys.AUTO_OCR] ?: DEFAULT_AUTO_OCR,
                 keepOriginalImage = preferences[Keys.KEEP_ORIGINAL] ?: DEFAULT_KEEP_ORIGINAL,
                 checkForUpdates = preferences[Keys.CHECK_UPDATES] ?: DEFAULT_CHECK_UPDATES,
+                // `fromStorage` tự rơi về mặc định khi giá trị null hoặc không nhận ra — nhờ
+                // vậy một giá trị lạ (do bản cũ ghi vào) không làm ứng dụng hỏng.
+                ocrEngineKind = OcrEngineKind.fromStorage(preferences[Keys.OCR_ENGINE]),
+                ocrModelQuality = OcrModelQuality.fromStorage(preferences[Keys.OCR_MODEL]),
             )
         }
 
@@ -51,6 +57,14 @@ class DataStoreSettingsRepository @Inject constructor(
         dataStore.edit { preferences -> preferences[Keys.CHECK_UPDATES] = enabled }
     }
 
+    override suspend fun setOcrEngineKind(kind: OcrEngineKind) {
+        dataStore.edit { preferences -> preferences[Keys.OCR_ENGINE] = kind.storageValue }
+    }
+
+    override suspend fun setOcrModelQuality(quality: OcrModelQuality) {
+        dataStore.edit { preferences -> preferences[Keys.OCR_MODEL] = quality.storageValue }
+    }
+
     private fun String?.toThemePreference(): ThemePreference =
         ThemePreference.entries.firstOrNull { it.name == this } ?: ThemePreference.SYSTEM
 
@@ -59,6 +73,16 @@ class DataStoreSettingsRepository @Inject constructor(
         val AUTO_OCR = booleanPreferencesKey("auto_ocr")
         val KEEP_ORIGINAL = booleanPreferencesKey("keep_original_image")
         val CHECK_UPDATES = booleanPreferencesKey("check_for_updates")
+
+        /**
+         * Lưu bằng `storageValue` (chuỗi ổn định), KHÔNG dùng `name` của enum.
+         *
+         * Vì sao: đổi tên hằng số trong enum (ví dụ `ML_KIT` -> `MLKIT`) sẽ làm dữ liệu cũ
+         * không đọc được nữa, và người dùng âm thầm bị đưa về engine mặc định. `storageValue`
+         * là một hợp đồng riêng, chỉ đổi khi thật sự muốn đổi định dạng lưu.
+         */
+        val OCR_ENGINE = stringPreferencesKey("ocr_engine")
+        val OCR_MODEL = stringPreferencesKey("ocr_model")
     }
 
     private companion object {

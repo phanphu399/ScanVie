@@ -119,11 +119,17 @@ Grayscale/B&W/Đảo màu) → sharpen + denoise → lưu JPG (quality 85, EXIF 
 > **Việc phải làm (Giai đoạn 3b):** thay engine OCR. Xem `MVP_SPEC.md` §2.5 để so sánh Tesseract + `vie.traineddata` (offline, miễn phí, ưu tiên) và PaddleOCR/ONNX (chất lượng cao hơn), cùng Cloud Vision (tùy chọn có cảnh báo, cần người dùng tự bật). Cổng `OcrEngine` đã tách sẵn nên **không phải sửa** Room, ViewModel hay PDF exporter.
 
 ### Giai đoạn 3b — Thay engine OCR (Tuần 6–7, làm trước khi phát hành)
-1. Cài Tesseract + `vie.traineddata` sau cổng `OcrEngine` hiện có (chỉ sửa `platform/ocr/`).
-2. Thêm cột `ocrEngineVersion` + migration v2→v3 để biết trang nào cần re-OCR.
-3. Dựng bộ ≥20 ảnh tài liệu in tiếng Việt thật, đo tỉ lệ dòng đọc đúng (mục tiêu ≥90%).
-4. Chỉ sau khi đạt mục 3 mới bật "OCR tiếng Việt" trong mô tả Play.
-5. **Deliverable:** PDF xuất ra, copy trên máy tính ra **đúng dấu tiếng Việt**.
+
+**Trạng thái (20/10/2026):** mục 1 **đã xong** — Tesseract + `vie.traineddata` đã tích hợp sau cổng `OcrEngine`, là mặc định, có 27 test mới bảo vệ. Đã chứng minh dự đoán về Clean Architecture: thêm engine **không sửa một dòng nào** trong Room, ViewModel, PDF exporter hay luồng quét.
+
+**Mục 3 chưa làm, và là điều kiện chặn phát hành.** Chưa có số đo nào trên ảnh thật.
+
+1. ✅ Cài Tesseract + `vie.traineddata` sau cổng `OcrEngine` (chỉ sửa `platform/ocr/`). Cổng được mở rộng thành `TesseractOcrEnginePort`/`MlKitOcrEnginePort` + `OcrEngineProvider` + `TessdataProvisioner`; người dùng chọn engine trong Cài đặt, mặc định Tesseract.
+2. ⏳ Thêm cột `ocrEngineVersion` + migration để biết trang nào cần re-OCR. **Chưa làm** — nên hiện tại đổi engine **không** tự nhận dạng lại tài liệu cũ. Đây là hạn chế đã biết (xem `ARCHITECTURE.md` §9).
+3. ⏳ Dựng bộ ≥20 ảnh tài liệu in tiếng Việt thật, đo tỉ lệ dòng đọc đúng (mục tiêu ≥90%). Cần đo **cả** Tesseract `best`, Tesseract `fast`, và ML Kit trên cùng bộ ảnh.
+4. ⏳ Chỉ sau khi đạt mục 3 mới bật "OCR tiếng Việt" trong mô tả Play.
+5. ⏳ **Deliverable:** PDF xuất ra, copy trên máy tính ra **đúng dấu tiếng Việt** — phải kiểm bằng tay trên máy thật (xem `MVP_SPEC.md` §6.3, mục 20).
+6. ⏳ **Giai đoạn 3c (sau 3b):** thêm PaddleOCR/ONNX Runtime Mobile làm engine thứ ba sau cùng cổng, rồi so sánh trên cùng bộ ảnh ở mục 3.
 
 ### Giai đoạn 4 — Trải nghiệm & hiệu năng (Tuần 7) ★ "nhanh & dễ dùng"
 1. Auto-capture: giữ máy yên 0.5s → tự chụp.
@@ -155,7 +161,7 @@ Grayscale/B&W/Đảo màu) → sharpen + denoise → lưu JPG (quality 85, EXIF 
 4. Xin 5–10 review đầu tiên (bạn bè, nhóm Facebook "sinh viên", group kế toán).
 5. **Deliverable:** bản production, listing tiếng Việt + Anh, screenshots đẹp.
 
-> **Đã làm trước (20/10/2026):** mục 1 một phần — 193 unit test / 0 lỗi / 21 suite, đã chạy thật. Nhưng **chưa có test instrumented nào**; đây là lỗ hổng lớn nhất còn lại, vì mọi thứ phụ thuộc giao diện hệ thống (trình quét ML Kit, trình cài đặt APK, SAF) hiện chỉ kiểm được bằng tay.
+> **Đã làm (20/10/2026):** **234 unit test / 0 lỗi / 0 bỏ qua / 24 suite**, đã chạy thật (`--rerun-tasks`). Nhưng **chưa có test instrumented nào**; đây là lỗ hổng lớn nhất còn lại, vì mọi thứ phụ thuộc giao diện hệ thống (trình quét ML Kit, trình cài đặt APK, SAF) hiện chỉ kiểm được bằng tay. **Chưa có phép đo chất lượng OCR trên ảnh thật** — xem Giai đoạn 3b mục 3.
 > **Trước khi phát hành bắt buộc:** dùng bản release **đã ký** (hiện APK release chưa ký, chỉ APK debug là cài được), và kiểm tra tên "ScanViet" trên Play + thương hiệu.
 
 ### Sau MVP (Backlog, chỉ làm khi có data)
@@ -167,7 +173,7 @@ Grayscale/B&W/Đảo màu) → sharpen + denoise → lưu JPG (quality 85, EXIF 
 
 ## 4. Kiểm thử
 
-> **Trạng thái thật (20/10/2026):** đã chạy **193 unit test / 0 lỗi / 21 suite** (`./gradlew :app:testDebugUnitTest`), cộng `assembleDebug` + `assembleRelease` xanh. **Chưa có test instrumented và chưa có screenshot test.** Bảng dưới là *công cụ dự định*, không phải đã dùng hết.
+> **Trạng thái thật (20/10/2026):** đã chạy **234 unit test / 0 lỗi / 0 bỏ qua / 24 suite** (`./gradlew :app:testDebugUnitTest --rerun-tasks`), cộng `assembleDebug` + `assembleRelease` xanh. **Chưa có test instrumented và chưa có screenshot test.** Bảng dưới là *công cụ dự định*, không phải đã dùng hết.
 
 | Loại | Công cụ | Tập trung |
 |---|---|---|

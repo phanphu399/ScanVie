@@ -1,5 +1,6 @@
 package vn.scanviet.app.ui.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,8 @@ import vn.scanviet.app.BuildConfig
 import vn.scanviet.app.R
 import vn.scanviet.app.core.format.Formatters
 import vn.scanviet.app.domain.model.ThemePreference
+import vn.scanviet.app.domain.ocr.OcrEngineKind
+import vn.scanviet.app.domain.ocr.OcrModelQuality
 import vn.scanviet.app.ui.components.SectionHeader
 import vn.scanviet.app.ui.update.UpdateSection
 import vn.scanviet.app.ui.update.UpdateViewModel
@@ -111,6 +114,38 @@ fun SettingsScreen(
                         checked = uiState.settings.keepOriginalImage,
                         onCheckedChange = viewModel::onKeepOriginalImageChange,
                     )
+                }
+            }
+
+            SectionHeader(text = stringResource(R.string.settings_section_ocr))
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.selectableGroup()) {
+                    OcrChoiceHeader(text = stringResource(R.string.settings_ocr_engine_label))
+                    OcrEngineKind.entries.forEach { kind ->
+                        OcrChoice(
+                            label = stringResource(kind.labelRes()),
+                            supportingText = stringResource(kind.hintRes()),
+                            selected = uiState.settings.ocrEngineKind == kind,
+                            onSelect = { viewModel.onOcrEngineChange(kind) },
+                        )
+                    }
+
+                    // Chất lượng model chỉ có ý nghĩa với Tesseract. Hiện luôn nhưng VÔ HIỆU
+                    // khi đang chọn ML Kit, kèm giải thích — thay vì ẩn đi, vì ẩn làm người
+                    // dùng không biết tuỳ chọn này tồn tại khi họ quay lại Tesseract.
+                    OcrChoiceHeader(
+                        text = stringResource(R.string.settings_ocr_quality_label),
+                        enabled = uiState.settings.ocrEngineKind == OcrEngineKind.TESSERACT,
+                    )
+                    OcrModelQuality.entries.forEach { quality ->
+                        OcrChoice(
+                            label = stringResource(quality.labelRes()),
+                            supportingText = stringResource(quality.hintRes()),
+                            selected = uiState.settings.ocrModelQuality == quality,
+                            enabled = uiState.settings.ocrEngineKind == OcrEngineKind.TESSERACT,
+                            onSelect = { viewModel.onOcrModelQualityChange(quality) },
+                        )
+                    }
                 }
             }
 
@@ -204,6 +239,68 @@ private fun ThemeOption(
     HorizontalDivider()
 }
 
+/** Tiêu đề nhỏ trong một nhóm lựa chọn. Mờ đi khi cả nhóm đang bị vô hiệu. */
+@Composable
+private fun OcrChoiceHeader(text: String, enabled: Boolean = true) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = if (enabled) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = DISABLED_ALPHA)
+        },
+        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
+    )
+}
+
+/**
+ * Một lựa chọn dạng radio kèm mô tả.
+ *
+ * Vì sao khác [ThemeOption]: các lựa chọn OCR cần **mô tả phụ** (ví dụ "không đọc được tiếng
+ * Việt có dấu"). Người dùng phải biết điều đó TRƯỚC khi chọn, không phải sau khi thất vọng
+ * với kết quả.
+ *
+ * [enabled] = false làm cả hàng mờ và không bấm được. Dùng khi lựa chọn không áp dụng cho
+ * cấu hình hiện tại (chất lượng model khi đang dùng ML Kit).
+ */
+@Composable
+private fun OcrChoice(
+    label: String,
+    supportingText: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    enabled: Boolean = true,
+) {
+    val contentAlpha = if (enabled) 1f else DISABLED_ALPHA
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onSelect)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        RadioButton(selected = selected, onClick = onSelect, enabled = enabled)
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 8.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
+            )
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
+            )
+        }
+    }
+    HorizontalDivider()
+}
+
 @Composable
 private fun SwitchRow(
     label: String,
@@ -230,3 +327,36 @@ private fun SwitchRow(
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
+
+/**
+ * Ánh xạ engine -> chuỗi hiển thị.
+ *
+ * Dùng `when` không có nhánh `else`: thêm một engine mới mà quên chuỗi hiển thị sẽ thành lỗi
+ * biên dịch, thay vì một hàng trống trong Cài đặt.
+ */
+@StringRes
+private fun OcrEngineKind.labelRes(): Int = when (this) {
+    OcrEngineKind.TESSERACT -> R.string.settings_ocr_engine_tesseract
+    OcrEngineKind.ML_KIT -> R.string.settings_ocr_engine_mlkit
+}
+
+@StringRes
+private fun OcrEngineKind.hintRes(): Int = when (this) {
+    OcrEngineKind.TESSERACT -> R.string.settings_ocr_engine_tesseract_hint
+    OcrEngineKind.ML_KIT -> R.string.settings_ocr_engine_mlkit_hint
+}
+
+@StringRes
+private fun OcrModelQuality.labelRes(): Int = when (this) {
+    OcrModelQuality.BEST -> R.string.settings_ocr_quality_best
+    OcrModelQuality.FAST -> R.string.settings_ocr_quality_fast
+}
+
+@StringRes
+private fun OcrModelQuality.hintRes(): Int = when (this) {
+    OcrModelQuality.BEST -> R.string.settings_ocr_quality_best_hint
+    OcrModelQuality.FAST -> R.string.settings_ocr_quality_fast_hint
+}
+
+/** Độ mờ cho lựa chọn đang bị vô hiệu. Đủ thấy chữ, đủ rõ là không bấm được. */
+private const val DISABLED_ALPHA = 0.38f

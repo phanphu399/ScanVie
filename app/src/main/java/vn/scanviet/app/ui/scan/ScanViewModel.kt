@@ -9,10 +9,13 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import vn.scanviet.app.core.format.Formatters
 import vn.scanviet.app.core.time.TimeProvider
+import vn.scanviet.app.domain.repository.SettingsRepository
 import vn.scanviet.app.domain.usecase.ImportScannedDocumentUseCase
+import vn.scanviet.app.domain.usecase.RecognizeDocumentTextUseCase
 import vn.scanviet.app.platform.scanner.DocumentScannerEngine
 import vn.scanviet.app.platform.scanner.ScanUnavailableException
 import vn.scanviet.app.ui.common.UiMessage
@@ -29,6 +32,8 @@ import vn.scanviet.app.ui.common.toUiMessage
 class ScanViewModel @Inject constructor(
     private val scannerEngine: DocumentScannerEngine,
     private val importScannedDocument: ImportScannedDocumentUseCase,
+    private val recognizeDocumentText: RecognizeDocumentTextUseCase,
+    private val settingsRepository: SettingsRepository,
     private val timeProvider: TimeProvider,
 ) : ViewModel() {
 
@@ -126,12 +131,47 @@ class ScanViewModel @Inject constructor(
                     sourceUris = current.pages.map { page -> page.sourceUri },
                 )
             }
-                .onSuccess { document -> _uiState.value = ScanUiState.Saved(document.id) }
+                .onSuccess { document ->
+                    _uiState.value = ScanUiState.Saved(document.id)
+                    // Nhận dạng chữ sau khi lưu xong, nếu người dùng bật "Tự động nhận dạng".
+                    recognizeIfAuto(document.id)
+                }
                 .onFailure { failure ->
                     // Giữ nguyên danh sách trang để người dùng thử lưu lại, không mất công quét lại.
                     _uiState.value = current.copy(isSaving = false)
                     _message.value = failure.toUiMessage()
                 }
+        }
+    }
+
+    /**
+     * Chạy nhận dạng chữ ngay sau khi lưu, nếu cài đặt bật.
+     *
+     * **Ba quyết định quan trọng:**
+     *
+     * 1. **Tài liệu đã lưu xong rồi mới chạy.** Nhận dạng là bước *thêm giá trị*, không phải
+     *    điều kiện để lưu thành công. Nếu nó thất bại, người dùng **vẫn có tài liệu** — mất
+     *    chữ còn hơn mất cả tài liệu vừa quét công phu.
+     *
+     * 2. **Lỗi nhận dạng KHÔNG đưa người dùng về màn hình xem lại.** Trạng thái vẫn là
+     *    `Saved`, tức luồng quét đã kết thúc thành công. Chỉ hiện snackbar báo không nhận
+     *    dạng được. Đưa về màn hình xem lại sẽ khiến người dùng tưởng việc lưu đã thất bại
+     *    và bấm "Lưu" lần nữa — tạo ra tài liệu trùng.
+     *
+     * 3. **`recognizeDocumentText` đã tự bỏ qua trang có chữ rồi**, nên gọi lại là an toàn.
+     *
+     * Đọc cài đặt ở đây (chứ không truyền từ màn hình) để giá trị luôn là giá trị mới nhất,
+     * kể cả khi người dùng vừa đổi trong lúc màn hình quét còn mở.
+     */
+    private suspend fun recognizeIfAuto(documentId: String) {
+        val autoOcr = runCatching { settingsRepository.settings.first().autoOcr }.getOrDefault(false)
+        if (!autoOcr) return
+
+        val failure = runCatching { recognizeDocumentText(documentId) }.exceptionOrNull()
+        // Chỉ báo khi thật sự có lỗi. Thành công thì để người dùng tự thấy chữ trong màn hình
+        // chi tiết — một snackbar "đã nhận dạng" cho mỗi lần lưu sẽ gây nhiễu.
+        if (failure != null) {
+            _message.value = failure.toUiMessage()
         }
     }
 

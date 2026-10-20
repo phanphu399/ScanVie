@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -24,6 +25,7 @@ import org.robolectric.annotation.Config
 import vn.scanviet.app.R
 import vn.scanviet.app.data.file.LocalDocumentFileStorage
 import vn.scanviet.app.domain.model.NewDocumentPage
+import vn.scanviet.app.domain.ocr.OcrEngineProvider
 import vn.scanviet.app.domain.storage.DocumentFileStorage
 import vn.scanviet.app.domain.usecase.ExportDocumentAsPdfUseCase
 import vn.scanviet.app.domain.usecase.RecognizeDocumentTextUseCase
@@ -31,9 +33,13 @@ import vn.scanviet.app.domain.usecase.RenameDocumentUseCase
 import vn.scanviet.app.navigation.ScanVietRoutes
 import vn.scanviet.app.testing.FakeDocumentOutputTarget
 import vn.scanviet.app.testing.FakeDocumentRepository
+import vn.scanviet.app.testing.FakeMlKitOcrEngine
 import vn.scanviet.app.testing.FakeOcrEngine
 import vn.scanviet.app.testing.FakePageImageLoader
 import vn.scanviet.app.testing.FakePdfExporter
+import vn.scanviet.app.testing.FakeSettingsRepository
+import vn.scanviet.app.testing.FakeTessdataProvisioner
+import vn.scanviet.app.testing.FakeTesseractOcrEngine
 import vn.scanviet.app.testing.TestDispatcherProvider
 
 /**
@@ -245,7 +251,12 @@ class DocumentDetailViewModelTest {
         recognizeText = RecognizeDocumentTextUseCase(
             repository = repository,
             storage = storage,
-            ocrEngine = ocrEngine,
+            settingsRepository = FakeSettingsRepository(),
+            engineProvider = OcrEngineProvider(
+                tesseract = FakeTesseractOcrEngine(ocrEngine),
+                mlKit = FakeMlKitOcrEngine(ocrEngine),
+                tessdata = FakeTessdataProvisioner(File("build/tmp/ocr-model")),
+            ),
         ),
         storage = storage,
         savedStateHandle = SavedStateHandle(mapOf(ScanVietRoutes.ARG_DOCUMENT_ID to DOC_ID)),

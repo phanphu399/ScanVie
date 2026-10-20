@@ -32,10 +32,33 @@ mlkitDocumentScanner = "16.0.0"
 # API này chỉ hỗ trợ 5 hệ chữ: Latin, Chinese, Devanagari, Japanese, Korean.
 # TIẾNG VIỆT CÓ DẤU KHÔNG NẰM TRONG DANH SÁCH ĐƯỢC HỖ TRỢ CHÍNH THỨC. Model Latin
 # đóng gói là `Latn_ctc` (xem assets/mlkit-google-ocr-models trong APK) và nó bỏ dấu
-# hoặc trả về chuỗi rỗng với văn bản tiếng Việt. KHÔNG dùng nó cho bản phát hành.
-# Cần thay bằng engine khác (Tesseract + vie.traineddata, hoặc PaddleOCR) trước khi
-# công bố tính năng nhận dạng chữ tiếng Việt.
+# hoặc trả về chuỗi rỗng với văn bản tiếng Việt.
+#
+# Từ Giai đoạn B, engine này KHÔNG còn là mặc định — nó chỉ còn là lựa chọn dự phòng
+# cho tài liệu tiếng Anh (nơi nó mạnh hơn Tesseract nhờ mô hình nơ-ron). Engine mặc
+# định cho tiếng Việt là Tesseract; xem `ocrEngineKind` bên dưới.
 mlkitTextRecognition = "16.0.1"
+
+# ---------------------------------------------------------------------------
+# Tesseract 5 cho Android (Giai đoạn B) — engine nhận dạng chữ TIẾNG VIỆT.
+#
+# Vì sao cần: ML Kit Text Recognition v2 không có tiếng Việt trong 5 hệ chữ được hỗ
+# trợ, nên chữ có dấu bị bỏ dấu hoặc mất hẳn. Tesseract có `vie.traineddata` chính
+# thức do dự án Tesseract phát hành, giữ được dấu tiếng Việt.
+#
+# ĐÃ KIỂM CHỨNG THẬT NGÀY 20/10/2026 (không suy đoán):
+#   - `cz.adaptech.tesseract4android:tesseract4android:4.9.0` -> HTTP 200, AAR 12,25 MB
+#   - Artifact này nằm trên **JitPack**, KHÔNG có trên Maven Central.
+#     (Đã kiểm chứng: `search.maven.org` cho `g:cz.adaptech` ra 0 kết quả, và
+#      `repo1.maven.org/maven2/cz/adaptech/` trả 404.)
+#   - Giấy phép: Apache 2.0. Bao gồm Tesseract 5.5.1 + Leptonica 1.85.0.
+#   - Yêu cầu: Android 5.0 (API 21)+. Ứng dụng này minSdk 23 nên thoả.
+#
+# Vì sao bản "standard" (đơn luồng) chứ không phải "openmp": luồng nhận dạng của ứng
+# dụng xử lý TUẦN TỰ từng trang và chỉ dùng MỘT instance Tesseract. Bản openmp tăng
+# tốc khi chạy một instance, nhưng thêm phụ thuộc native của OpenMP và làm APK to
+# hơn. Với 20 trang/lần quét, chênh lệch không đáng để đánh đổi thêm rủi ro đóng gói.
+tesseract4android = "4.9.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -65,8 +88,14 @@ hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", ve
 # tải ở lần dùng đầu tiên (đây là lý do tuyên bố "hoạt động ngoại tuyến" phải nói rõ).
 mlkit-document-scanner = { module = "com.google.android.gms:play-services-mlkit-document-scanner", version.ref = "mlkitDocumentScanner" }
 
-# Nhận dạng chữ (OCR) hệ chữ Latin, gồm tiếng Việt. Bản bundled: model nằm sẵn trong APK.
+# Nhận dạng chữ (OCR) hệ chữ Latin — chỉ còn dùng cho tiếng Anh.
+# Xem `mlkitTextRecognition` ở [versions]: KHÔNG hỗ trợ tiếng Việt có dấu.
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitTextRecognition" }
+
+# Tesseract 5 + Leptonica cho Android. Engine nhận dạng chữ tiếng Việt.
+# Lưu ý: PHẢI có repository JitPack trong settings.gradle.kts, artifact này không
+# nằm trên Maven Central (đã kiểm chứng 404 ngày 20/10/2026).
+tesseract4android = { module = "cz.adaptech.tesseract4android:tesseract4android", version.ref = "tesseract4android" }
 
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }

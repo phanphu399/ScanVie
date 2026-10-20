@@ -15,12 +15,26 @@ import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import vn.scanviet.app.core.DispatcherProvider
-import vn.scanviet.app.domain.ocr.OcrEngine
+import vn.scanviet.app.domain.ocr.MlKitOcrEnginePort
+import vn.scanviet.app.domain.ocr.OcrEngineKind
 import vn.scanviet.app.domain.ocr.OcrLine
 import vn.scanviet.app.domain.ocr.OcrPageResult
 
 /**
- * Nhận dạng chữ bằng ML Kit Text Recognition v2 (hệ chữ Latin, gồm tiếng Việt).
+ * Nhận dạng chữ bằng ML Kit Text Recognition v2 (hệ chữ Latin, **KHÔNG có tiếng Việt**).
+ *
+ * ⚠️ **ĐÍNH CHÍNH QUAN TRỌNG.** Lớp này từng được viết với ghi chú "hệ chữ Latin, gồm tiếng
+ * Việt". Điều đó SAI, và đã được kiểm chứng lại bằng tài liệu chính thức của Google
+ * (tháng 10/2026): Text Recognition v2 chỉ hỗ trợ **5 hệ chữ** — Latin, Chinese, Devanagari,
+ * Japanese, Korean. **Tiếng Việt có dấu không nằm trong danh sách được hỗ trợ.**
+ *
+ * Bằng chứng cụ thể: mô hình được đóng gói trong APK là `Latn_ctc` (xem
+ * `assets/mlkit-google-ocr-models/` bên trong file APK). Với văn bản tiếng Việt, mô hình này
+ * **bỏ dấu** ("Tiếng Việt" -> "Tieng Viet") hoặc trả về chuỗi rỗng.
+ *
+ * **Vì sao lớp này vẫn tồn tại** thay vì bị xoá: nó mạnh hơn Tesseract trên tài liệu **tiếng
+ * Anh in rõ**, vì dùng mô hình nơ-ron thay vì LSTM cổ điển. Người dùng chọn engine trong Cài
+ * đặt; mặc định là Tesseract (`OcrEngineKind.DEFAULT`).
  *
  * Vì sao dùng bản bundled (`com.google.mlkit:text-recognition`): model nhận dạng nằm sẵn
  * trong APK, nên chạy được ngoại tuyến ngay sau khi cài. Bản dùng Play services sẽ phải
@@ -40,7 +54,9 @@ import vn.scanviet.app.domain.ocr.OcrPageResult
 @Singleton
 class MlKitOcrEngine @Inject constructor(
     private val dispatchers: DispatcherProvider,
-) : OcrEngine {
+) : MlKitOcrEnginePort {
+
+    override val kind: OcrEngineKind = OcrEngineKind.ML_KIT
 
     override suspend fun recognize(imageFile: File, rotationDegrees: Int): OcrPageResult? =
         withContext(dispatchers.default) {

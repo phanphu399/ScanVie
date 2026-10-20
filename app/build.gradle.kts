@@ -17,8 +17,8 @@ android {
         applicationId = "vn.scanviet.app"
         minSdk = 23
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.4.0"
+        versionCode = 3
+        versionName = "0.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -135,10 +135,26 @@ dependencies {
     // ⚠️ ĐÍNH CHÍNH: artifact này KHÔNG hỗ trợ tiếng Việt có dấu. Text Recognition v2 chỉ
     // có 5 hệ chữ (Latin, Chinese, Devanagari, Japanese, Korean); mô hình đóng gói thật là
     // `Latn_ctc`, nó bỏ dấu hoặc trả chuỗi rỗng với văn bản tiếng Việt.
-    // Xem MVP_SPEC.md §2.5. Phải thay engine trước khi quảng cáo tính năng.
-    // Cổng `domain/ocr/OcrEngine` đã tách sẵn nên việc thay engine không đụng tới Room,
-    // ViewModel hay PDF exporter — chỉ thay `platform/ocr/MlKitOcrEngine`.
+    // Xem MVP_SPEC.md §2.5.
+    //
+    // Từ Giai đoạn B, engine này KHÔNG còn là mặc định cho tiếng Việt. Nó vẫn được giữ
+    // vì mạnh hơn Tesseract trên tài liệu TIẾNG ANH in rõ (mô hình nơ-ron so với LSTM
+    // cổ điển). Người dùng chọn engine trong Cài đặt; mặc định là Tesseract.
     implementation(libs.mlkit.text.recognition)
+
+    // Giai đoạn B: Tesseract 5 — engine nhận dạng chữ TIẾNG VIỆT.
+    //
+    // Vì sao cần thư viện này: ML Kit Text Recognition v2 không có tiếng Việt trong 5 hệ
+    // chữ được hỗ trợ, nên chữ có dấu bị bỏ dấu hoặc mất hẳn.
+    //
+    // Lưu ý về nguồn: artifact này nằm trên **JitPack**, không có trên Maven Central
+    // (đã kiểm chứng 404 ngày 20/10/2026). Repository JitPack được khai báo trong
+    // settings.gradle.kts, giới hạn đúng group `cz.adaptech.tesseract4android`.
+    //
+    // File model `vie.traineddata` (~12 MB) KHÔNG tải lúc chạy. Nó được đóng gói sẵn
+    // trong `assets/tessdata/` và giải nén ra vùng riêng của app ở lần dùng đầu tiên.
+    // Nhờ vậy nhận dạng chữ chạy được ngoại tuyến ngay sau khi cài, đúng lời hứa của app.
+    implementation(libs.tesseract4android)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import vn.scanviet.app.domain.model.AppSettings
 import vn.scanviet.app.domain.model.ThemePreference
+import vn.scanviet.app.domain.ocr.OcrEngineKind
+import vn.scanviet.app.domain.ocr.OcrModelQuality
 import vn.scanviet.app.domain.repository.DocumentRepository
 import vn.scanviet.app.domain.repository.SettingsRepository
 
@@ -50,6 +52,26 @@ class SettingsViewModel @Inject constructor(
 
     fun onCheckForUpdatesChange(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setCheckForUpdates(enabled) }
+    }
+
+    /**
+     * Đổi engine nhận dạng chữ.
+     *
+     * Không cần dựng lại ViewModel hay khởi động lại ứng dụng: `RecognizeDocumentTextUseCase`
+     * đọc lại cài đặt ở mỗi lần chạy (xem ghi chú "quyết định 5" trong lớp đó).
+     */
+    fun onOcrEngineChange(kind: OcrEngineKind) {
+        viewModelScope.launch { settingsRepository.setOcrEngineKind(kind) }
+    }
+
+    /**
+     * Đổi chất lượng model Tesseract.
+     *
+     * Lần nhận dạng kế tiếp sẽ giải nén model mới ra đĩa, nên lần chạy đầu chậm hơn một chút.
+     * Xem `AssetTessdataProvisioner`.
+     */
+    fun onOcrModelQualityChange(quality: OcrModelQuality) {
+        viewModelScope.launch { settingsRepository.setOcrModelQuality(quality) }
     }
 
     private companion object {

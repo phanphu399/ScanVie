@@ -18,9 +18,16 @@ import vn.scanviet.app.domain.DocumentNotFoundException
 import vn.scanviet.app.domain.OcrFailedException
 import vn.scanviet.app.domain.model.NewDocumentPage
 import vn.scanviet.app.domain.model.OcrStatus
+import vn.scanviet.app.domain.ocr.OcrEngineKind
+import vn.scanviet.app.domain.ocr.OcrEngineProvider
+import vn.scanviet.app.domain.ocr.OcrModelQuality
 import vn.scanviet.app.domain.storage.DocumentFileStorage
 import vn.scanviet.app.testing.FakeDocumentRepository
+import vn.scanviet.app.testing.FakeMlKitOcrEngine
 import vn.scanviet.app.testing.FakeOcrEngine
+import vn.scanviet.app.testing.FakeSettingsRepository
+import vn.scanviet.app.testing.FakeTessdataProvisioner
+import vn.scanviet.app.testing.FakeTesseractOcrEngine
 import vn.scanviet.app.testing.TestDispatcherProvider
 
 /**
@@ -40,6 +47,9 @@ class RecognizeDocumentTextUseCaseTest {
     private lateinit var storage: DocumentFileStorage
     private lateinit var repository: FakeDocumentRepository
     private lateinit var engine: FakeOcrEngine
+    private lateinit var tesseract: FakeTesseractOcrEngine
+    private lateinit var settings: FakeSettingsRepository
+    private lateinit var provisioner: FakeTessdataProvisioner
     private lateinit var useCase: RecognizeDocumentTextUseCase
 
     @Before
@@ -48,13 +58,20 @@ class RecognizeDocumentTextUseCaseTest {
         storage = LocalDocumentFileStorage(context, TestDispatcherProvider())
         repository = FakeDocumentRepository()
         engine = FakeOcrEngine()
+        tesseract = FakeTesseractOcrEngine(engine)
+        settings = FakeSettingsRepository()
+        provisioner = FakeTessdataProvisioner(context.filesDir)
         useCase = RecognizeDocumentTextUseCase(
             repository = repository,
             storage = storage,
-            ocrEngine = engine,
+            settingsRepository = settings,
+            engineProvider = OcrEngineProvider(
+                tesseract = tesseract,
+                mlKit = FakeMlKitOcrEngine(engine),
+                tessdata = provisioner,
+            ),
         )
     }
-
     @Test
     fun `nhận dạng tất cả các trang và lưu lại kết quả`() = runTest {
         seedDocument(pageCount = 3)
@@ -189,6 +206,97 @@ class RecognizeDocumentTextUseCaseTest {
         // Lỗi hạ tầng phải lộ ra, không được nuốt thành "không tìm thấy chữ".
         assertNotNull(result.exceptionOrNull())
         assertTrue(result.exceptionOrNull() !is OcrFailedException)
+    }
+
+    // ---------------------------------------------------------------------
+    // Chọn engine theo cài đặt (Giai đoạn B)
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `mặc định dùng Tesseract để có tiếng Việt có dấu`() = runTest {
+        seedDocument(pageCount = 1)
+
+        useCase(DOC_ID)
+
+        // Mặc định PHẢI là Tesseract: ML Kit Text Recognition v2 không hỗ trợ tiếng Việt
+        // có dấu, nên để ML Kit làm mặc định là âm thầm bỏ dấu tài liệu của người dùng.
+        assertEquals(OcrEngineKind.TESSERACT, settings.current.ocrEngineKind)
+        assertEquals(1, tesseract.appliedModels.size)
+    }
+
+    @Test
+    fun `chọn ML Kit thì không cài model Tesseract`() = runTest {
+        seedDocument(pageCount = 1)
+        settings.setOcrEngineKind(OcrEngineKind.ML_KIT)
+
+        useCase(DOC_ID)
+
+        // ML Kit có model sẵn trong APK — giải nén 12 MB model Tesseract là vô ích, và tệ
+        // hơn là bắt người dùng chờ đợi không cần thiết.
+        assertTrue(provisioner.installRequests.isEmpty())
+        assertTrue(tesseract.appliedModels.isEmpty())
+        assertEquals(1, engine.callCount)
+    }
+
+    @Test
+    fun `chọn Tesseract thì cài model trước khi nhận dạng`() = runTest {
+        seedDocument(pageCount = 1)
+        settings.setOcrEngineKind(OcrEngineKind.TESSERACT)
+
+        useCase(DOC_ID)
+
+        assertEquals(listOf(OcrModelQuality.BEST), provisioner.installRequests)
+        assertEquals(OcrModelQuality.BEST, tesseract.appliedModels.single().second)
+    }
+
+    @Test
+    fun `đổi chất lượng model thì lần chạy sau dùng đúng model mới`() = runTest {
+        seedDocument(pageCount = 1)
+        settings.setOcrModelQuality(OcrModelQuality.BEST)
+        useCase(DOC_ID)
+
+        // Xoá chữ đã nhận dạng để buộc chạy lại (nếu không, use case bỏ qua trang đã có chữ).
+        repository.seedOcrText(DOC_ID, emptyList())
+        settings.setOcrModelQuality(OcrModelQuality.FAST)
+        useCase(DOC_ID)
+
+        // Chất lượng model phải đi theo cài đặt tại thời điểm chạy, không bị đóng băng ở giá
+        // trị lúc khởi tạo — nếu không, đổi trong Cài đặt sẽ không có tác dụng cho tới khi
+        // người dùng tắt mở lại ứng dụng.
+        assertEquals(
+            listOf(OcrModelQuality.BEST, OcrModelQuality.FAST),
+            provisioner.installRequests,
+        )
+        assertEquals(OcrModelQuality.FAST, tesseract.appliedModels.last().second)
+    }
+
+    @Test
+    fun `thiếu model thì ném lỗi cài đặt chứ không báo thành công rỗng`() = runTest {
+        seedDocument(pageCount = 1)
+        provisioner.fail(OcrModelQuality.BEST)
+
+        val result = runCatching { useCase(DOC_ID) }
+
+        // Nếu lỗi này bị nuốt thành kết quả rỗng, người dùng sẽ thấy tài liệu "không có chữ"
+        // mà không hiểu vì sao — trong khi nguyên nhân thật là cài model thất bại.
+        val error = result.exceptionOrNull()
+        assertTrue(
+            "Mong đợi TessdataInstallException nhưng nhận $error",
+            error is vn.scanviet.app.domain.ocr.TessdataInstallException,
+        )
+        assertEquals(0, engine.callCount)
+    }
+
+    @Test
+    fun `thiếu model thì KHÔNG đánh dấu tài liệu là đang nhận dạng`() = runTest {
+        seedDocument(pageCount = 1)
+        provisioner.fail(OcrModelQuality.BEST)
+
+        runCatching { useCase(DOC_ID) }
+
+        // Model được lấy TRƯỚC khi bật RUNNING. Nếu thứ tự bị đảo, giao diện sẽ kẹt ở trạng
+        // thái "đang nhận dạng" vĩnh viễn sau khi thất bại.
+        assertEquals(OcrStatus.NONE, repository.getDocument(DOC_ID)?.ocrStatus)
     }
 
     /** Tạo tài liệu thật trong database giả, kèm file ảnh thật trên đĩa. */
