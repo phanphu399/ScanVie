@@ -9,10 +9,20 @@
 local.properties
 .idea/
 *.hprof
-*.jks
-*.keystore
 .DS_Store
 
-# Release keystore (NEVER commit)
-*.keystore
+# ============================================================================
+# Khoá ký ứng dụng — KHÔNG BAO GIỜ commit
+# ============================================================================
+#
+# `scanviet-release.keystore` — khoá chính thức. Mất khoá này là mất khả năng phát hành
+# bản cập nhật cho ứng dụng đã cài trên Google Play, không cứu được. Phải sao lưu ở nơi
+# khác ngoài máy này (ví dụ trình quản lý mật khẩu).
+#
+# `scanviet-dev.keystore` — khoá cho bản phát hành qua GitHub Releases. Cũng phải giữ:
+# Android chặn cài đặt khi chữ ký khác bản đang cài, nên mất khoá là mọi người dùng phải
+# gỡ ứng dụng rồi cài lại (mất dữ liệu).
+#
+# Cả hai tên đều khớp `*.keystore` bên dưới; liệt kê ở đây để lý do được ghi rõ trong repo.
 *.jks
+*.keystore

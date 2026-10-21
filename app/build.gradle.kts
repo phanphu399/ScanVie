@@ -62,11 +62,50 @@ signingConfigs {
                 keyPassword = "scanviet2026"
             }
         }
+
+        // Khoá ký cho các bản phát hành qua GitHub Releases.
+        //
+        // Vì sao KHÔNG dùng khoá debug mặc định của máy (`~/.android/debug.keystore`):
+        // khoá đó thuộc về MÁY, không thuộc dự án. Cài lại Windows, đổi máy, hoặc xoá
+        // Android Studio là mất khoá — và khi mất thì vĩnh viễn không phát hành được bản
+        // cập nhật cài đè lên bản cũ nữa (Android chặn cài đặt khi chữ ký khác). Khoá này
+        // được sao lưu trong chính thư mục dự án nên đi theo dự án.
+        //
+        // Không nằm trong Git: `*.keystore` đã bị .gitignore chặn. Máy clone mới không có
+        // file này thì Gradle rơi về khoá debug mặc định (xem nhánh else) — vẫn build và
+        // chạy được, chỉ là không cài đè lên bản đã phát hành.
+        //
+        // Mật khẩu "android" là mật khẩu tiêu chuẩn của khoá debug Android; khoá này KHÔNG
+        // dùng để phát hành lên Google Play.
+        create("development") {
+            val ks = file("../scanviet-dev.keystore")
+            if (ks.exists()) {
+                storeFile = ks
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {
         debug {
             isMinifyEnabled = false
+            // Dùng khoá chung của dự án thay vì khoá riêng của từng máy, để bản debug phát
+            // hành qua GitHub Releases luôn cài đè được lên bản trước đó.
+            //
+            // Chỉ gán khi file khoá tồn tại. Đã kiểm chứng hai hành vi thật của Gradle:
+            //   - Gán một `signingConfig` thiếu `storeFile` -> build DỪNG với lỗi
+            //     "SigningConfig "development" is missing required property storeFile".
+            //   - Để `null` khi máy KHÔNG có `~/.android/debug.keystore` -> Gradle sinh ra
+            //     `app-debug-unsigned.apk` (không ký), tệ hơn cả dừng build vì lỗi âm thầm.
+            // Nên khi thiếu file khoá dự án, ta để Gradle tự dùng khoá debug mặc định của
+            // máy (`signingConfigs.getByName("debug")` do Android plugin tạo sẵn).
+            signingConfig = if (file("../scanviet-dev.keystore").exists()) {
+                signingConfigs.findByName("development")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
         release {
             isMinifyEnabled = true

@@ -83,6 +83,29 @@ sdk.dir=C\:\\Users\\<tên-bạn>\\AppData\\Local\\Android\\Sdk
 
 Trên Windows dùng `gradlew.bat`. APK debug nằm ở `app/build/outputs/apk/debug/`.
 
+---
+
+## Khoá ký — đọc trước khi phát hành
+
+Ứng dụng dùng **hai khoá**, cả hai đều **không** nằm trong Git (`*.keystore` bị `.gitignore` chặn):
+
+| Khoá | File | Dùng cho | SHA-256 |
+|---|---|---|---|
+| Khoá phát hành chung | `scanviet-dev.keystore` | APK gắn lên GitHub Releases | `B2:24:FE:B1:15:3E:E4:49:AE:52:40:AA:4C:C8:B1:A6:AF:F9:79:CB:8E:BB:9A:CF:25:39:66:C3:83:CA:64:C1` |
+| Khoá release | `scanviet-release.keystore` | Bản ký chính thức (tương lai, Google Play) | `E3:8D:F8:13:99:04:97:ED:9A:16:7E:AB:2C:6E:02:27:FB:BD:A3:3E:75:6B:78:47:79:FB:C1:89:C2:90:3A:35` |
+
+**Vì sao không dùng khoá debug mặc định của máy (`~/.android/debug.keystore`):** khoá đó thuộc về **máy**, không thuộc dự án. Cài lại Windows, đổi máy, hoặc gỡ Android Studio là mất. Khi mất, Android **chặn cài đặt** bản mới lên bản đang cài (chữ ký khác nhau), nên mọi người dùng phải gỡ ứng dụng rồi cài lại — **mất toàn bộ tài liệu đã quét**. `scanviet-dev.keystore` được sao lưu trong chính thư mục dự án nên đi theo dự án.
+
+> ⚠️ **Phải sao lưu cả hai file khoá ra ngoài máy này** (trình quản lý mật khẩu, ổ cứng ngoài). Mất `scanviet-dev.keystore` = không phát hành được bản cập nhật cài đè nữa. Mất `scanviet-release.keystore` = **vĩnh viễn** không cập nhật được ứng dụng đã lên Google Play.
+
+Hành vi khi thiếu file khoá (đã kiểm chứng thật, không suy đoán):
+
+- **Thiếu `scanviet-dev.keystore`** → Gradle dùng khoá debug mặc định của máy, vẫn ký và build bình thường. Bản này **không** cài đè được lên bản đã phát hành.
+- **Thiếu `scanviet-release.keystore`** → bản release không được ký (`app-release-unsigned.apk`), vẫn build được để R8 kiểm tra.
+- Gán một `signingConfig` **thiếu `storeFile`** → build **dừng** với lỗi *"SigningConfig "development" is missing required property storeFile"*.
+- Đặt `signingConfig = null` khi máy không có khoá debug nào → Gradle sinh `app-debug-unsigned.apk` (**không ký**, không cài được). Đây là kiểu hỏng âm thầm nên tránh.
+
+
 **Kết quả đã chạy thật (20/10/2026):** **234 unit test / 0 lỗi / 0 bỏ qua / 24 suite**.
 
 | Suite | Số test | Ghi chú |
