@@ -34,4 +34,15 @@ data class AppSettings(
      * dùng máy yếu hoặc cần nhanh chọn được bản `fast`.
      */
     val ocrModelQuality: OcrModelQuality = OcrModelQuality.DEFAULT,
+
+    /**
+     * Thời điểm kiểm tra cập nhật gần nhất, tính bằng mili-giây từ 1970 (giá trị của
+     * `System.currentTimeMillis()`). Bằng 0 nghĩa là chưa từng kiểm tra.
+     *
+     * Vì sao lưu lại chứ không kiểm tra mỗi lần mở ứng dụng: người dùng có thể mở ứng dụng
+     * vài chục lần một ngày. Mỗi lần mở là một lời gọi mạng tới GitHub — vừa tốn pin, vừa
+     * tốn dữ liệu di động, vừa có nguy cơ bị GitHub chặn vì gọi quá nhiều. Ứng dụng tự giới
+     * hạn một lần mỗi 24 giờ, và người dùng luôn bấm kiểm tra tay được bất cứ lúc nào.
+     */
+    val lastUpdateCheckAt: Long = 0L,
 )

@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import vn.scanviet.app.R
 import vn.scanviet.app.core.format.Formatters
+import vn.scanviet.app.domain.model.AppRelease
 import vn.scanviet.app.ui.components.SectionHeader
 
 /**
@@ -67,7 +68,12 @@ fun UpdateSection(
                 }
 
                 is UpdateUiState.Available -> AvailableBlock(
-                    state = state,
+                    release = state.release,
+                    onDownload = onDownload,
+                )
+
+                is UpdateUiState.BannerDismissed -> AvailableBlock(
+                    release = state.release,
                     onDownload = onDownload,
                 )
 
@@ -159,23 +165,23 @@ private fun CheckingRow() {
 }
 
 @Composable
-private fun AvailableBlock(state: UpdateUiState.Available, onDownload: () -> Unit) {
+private fun AvailableBlock(release: AppRelease, onDownload: () -> Unit) {
     Text(
-        text = stringResource(R.string.update_available_title, state.release.versionName),
+        text = stringResource(R.string.update_available_title, release.versionName),
         style = MaterialTheme.typography.titleSmall,
     )
-    if (state.release.sizeBytes > 0L) {
+    if (release.sizeBytes > 0L) {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = stringResource(
                 R.string.update_available_size,
-                Formatters.fileSize(state.release.sizeBytes),
+                Formatters.fileSize(release.sizeBytes),
             ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-    if (state.release.releaseNotes.isNotBlank()) {
+    if (release.releaseNotes.isNotBlank()) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = stringResource(R.string.update_notes_label),
@@ -183,7 +189,7 @@ private fun AvailableBlock(state: UpdateUiState.Available, onDownload: () -> Uni
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = state.release.releaseNotes,
+            text = release.releaseNotes,
             style = MaterialTheme.typography.bodySmall,
         )
     }

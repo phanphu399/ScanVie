@@ -28,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,13 +44,16 @@ import vn.scanviet.app.domain.ocr.OcrModelQuality
 import vn.scanviet.app.ui.components.SectionHeader
 import vn.scanviet.app.ui.update.UpdateSection
 import vn.scanviet.app.ui.update.UpdateViewModel
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenTrash: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
-    updateViewModel: UpdateViewModel = hiltViewModel(),
+    // ViewModel cập nhật dùng chung ở phạm vi Activity (xem MainActivity và ScanVietNavHost).
+    // Nó phải giữ nguyên trạng thái khi người dùng đi từ Thư viện sang Cài đặt, và ngược lại.
+    updateViewModel: UpdateViewModel,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val updateState by updateViewModel.uiState.collectAsStateWithLifecycle()
@@ -206,13 +208,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
-    }
-
-    // Tự kiểm tra khi mở màn hình Cài đặt, nhưng chỉ khi người dùng còn bật tính năng này.
-    // Dùng LaunchedEffect với khoá là lựa chọn hiện tại: bật lại trong lúc đang ở màn hình
-    // cũng kích hoạt kiểm tra ngay, còn tắt thì không gọi mạng.
-    LaunchedEffect(uiState.settings.checkForUpdates) {
-        if (uiState.settings.checkForUpdates) updateViewModel.check()
     }
 }
 

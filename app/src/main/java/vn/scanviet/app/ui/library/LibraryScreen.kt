@@ -57,6 +57,8 @@ import vn.scanviet.app.ui.components.EmptyStateTone
 import vn.scanviet.app.ui.components.LoadingContent
 import vn.scanviet.app.ui.components.PrimaryActionButton
 import vn.scanviet.app.ui.components.SectionHeader
+import vn.scanviet.app.ui.update.UpdateBanner
+import vn.scanviet.app.ui.update.UpdateViewModel
 
 /**
  * Màn hình 1 — Trang chủ: nút quét tài liệu, ô tìm kiếm, danh sách tài liệu đã lưu.
@@ -69,11 +71,13 @@ fun LibraryScreen(
     onOpenDocument: (String) -> Unit,
     onOpenTrash: () -> Unit,
     onOpenSettings: () -> Unit,
+    updateViewModel: UpdateViewModel,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
+    val updateState by updateViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     var documentToRename by remember { mutableStateOf<Document?>(null) }
@@ -124,6 +128,15 @@ fun LibraryScreen(
                 text = stringResource(R.string.library_scan_action),
                 icon = Icons.Default.Add,
                 onClick = onScanClick,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+
+            // Băng nhắc cập nhật nằm ngay dưới nút quét, trên ô tìm kiếm: đủ nổi bật để người
+            // dùng thấy, nhưng không chen vào chỗ họ cần bấm để làm việc.
+            UpdateBanner(
+                state = updateState,
+                onUpdate = updateViewModel::downloadAndInstall,
+                onDismiss = updateViewModel::dismissBanner,
                 modifier = Modifier.padding(top = 8.dp),
             )
 

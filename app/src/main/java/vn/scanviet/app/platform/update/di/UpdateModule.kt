@@ -1,5 +1,6 @@
 package vn.scanviet.app.platform.update.di
 
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -10,9 +11,11 @@ import vn.scanviet.app.BuildConfig
 import vn.scanviet.app.core.DispatcherProvider
 import vn.scanviet.app.domain.update.UpdateSource
 import vn.scanviet.app.domain.usecase.CheckForUpdateUseCase
+import vn.scanviet.app.platform.update.ApkInstaller
 import vn.scanviet.app.platform.update.GitHubReleaseSource
 import vn.scanviet.app.platform.update.HttpResponseReader
 import vn.scanviet.app.platform.update.HttpUrlConnectionReader
+import vn.scanviet.app.platform.update.UpdateInstaller
 
 /**
  * Nối cổng [UpdateSource] với nguồn GitHub Releases.
@@ -26,53 +29,64 @@ import vn.scanviet.app.platform.update.HttpUrlConnectionReader
  */
 @Module
 @InstallIn(SingletonComponent::class)
-object UpdateModule {
-
-    /** Tên kho GitHub chứa bản phát hành. Đặt trong build.gradle.kts để đổi không cần sửa code. */
-    @Provides
-    @Named("releaseOwner")
-    fun provideReleaseOwner(): String = BuildConfig.RELEASE_OWNER
-
-    @Provides
-    @Named("releaseRepository")
-    fun provideReleaseRepository(): String = BuildConfig.RELEASE_REPOSITORY
-
-    @Provides
-    @Named("currentVersion")
-    fun provideCurrentVersion(): String = BuildConfig.VERSION_NAME
-
-    @Provides
-    @Singleton
-    fun provideHttpResponseReader(dispatchers: DispatcherProvider): HttpResponseReader =
-        HttpUrlConnectionReader(dispatchers)
-
-    @Provides
-    @Singleton
-    fun provideUpdateSource(
-        httpReader: HttpResponseReader,
-        @Named("releaseOwner") owner: String,
-        @Named("releaseRepository") repository: String,
-    ): UpdateSource = GitHubReleaseSource(
-        httpReader = httpReader,
-        owner = owner,
-        repository = repository,
-    )
+abstract class UpdateModule {
 
     /**
-     * Cấp phát use case bằng tay thay vì để Hilt tự dựng.
-     *
-     * Vì sao: [CheckForUpdateUseCase] nhận `currentVersion: String` trong constructor. Hilt không
-     * biết lấy `String` nào, và nếu chỉ có `@Named("currentVersion")` thì vẫn thiếu annotation
-     * trên tham số. Cấp phát tường minh ở đây khiến việc phiên bản đến từ đâu là rõ ràng, và
-     * vẫn giữ được constructor của use case thuần Kotlin để test không cần Hilt.
+     * Nối cổng [UpdateInstaller] với bản thật. Tách interface để test `UpdateViewModel` chạy
+     * được trên JVM mà không cần `Context`.
      */
-    @Provides
+    @Binds
     @Singleton
-    fun provideCheckForUpdateUseCase(
-        updateSource: UpdateSource,
-        @Named("currentVersion") currentVersion: String,
-    ): CheckForUpdateUseCase = CheckForUpdateUseCase(
-        updateSource = updateSource,
-        currentVersion = currentVersion,
-    )
+    abstract fun bindUpdateInstaller(impl: ApkInstaller): UpdateInstaller
+
+    companion object {
+
+        /** Tên kho GitHub chứa bản phát hành. Đặt trong build.gradle.kts để đổi không cần sửa code. */
+        @Provides
+        @Named("releaseOwner")
+        fun provideReleaseOwner(): String = BuildConfig.RELEASE_OWNER
+
+        @Provides
+        @Named("releaseRepository")
+        fun provideReleaseRepository(): String = BuildConfig.RELEASE_REPOSITORY
+
+        @Provides
+        @Named("currentVersion")
+        fun provideCurrentVersion(): String = BuildConfig.VERSION_NAME
+
+        @Provides
+        @Singleton
+        fun provideHttpResponseReader(dispatchers: DispatcherProvider): HttpResponseReader =
+            HttpUrlConnectionReader(dispatchers)
+
+        @Provides
+        @Singleton
+        fun provideUpdateSource(
+            httpReader: HttpResponseReader,
+            @Named("releaseOwner") owner: String,
+            @Named("releaseRepository") repository: String,
+        ): UpdateSource = GitHubReleaseSource(
+            httpReader = httpReader,
+            owner = owner,
+            repository = repository,
+        )
+
+        /**
+         * Cấp phát use case bằng tay thay vì để Hilt tự dựng.
+         *
+         * Vì sao: [CheckForUpdateUseCase] nhận `currentVersion: String` trong constructor. Hilt
+         * không biết lấy `String` nào, và nếu chỉ có `@Named("currentVersion")` thì vẫn thiếu
+         * annotation trên tham số. Cấp phát tường minh ở đây khiến việc phiên bản đến từ đâu là
+         * rõ ràng, và vẫn giữ được constructor của use case thuần Kotlin để test không cần Hilt.
+         */
+        @Provides
+        @Singleton
+        fun provideCheckForUpdateUseCase(
+            updateSource: UpdateSource,
+            @Named("currentVersion") currentVersion: String,
+        ): CheckForUpdateUseCase = CheckForUpdateUseCase(
+            updateSource = updateSource,
+            currentVersion = currentVersion,
+        )
+    }
 }

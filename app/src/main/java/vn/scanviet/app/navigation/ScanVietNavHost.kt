@@ -12,14 +12,20 @@ import vn.scanviet.app.ui.library.LibraryScreen
 import vn.scanviet.app.ui.library.TrashScreen
 import vn.scanviet.app.ui.scan.ScanScreen
 import vn.scanviet.app.ui.settings.SettingsScreen
+import vn.scanviet.app.ui.update.UpdateViewModel
 import vn.scanviet.app.ui.viewer.DocumentViewerScreen
 
 /**
  * Nơi duy nhất biết về tất cả màn hình.
  * Các màn hình chỉ nhận callback (onOpenDocument, onScanClick, ...) nên không phụ thuộc lẫn nhau.
+ *
+ * [updateViewModel] được truyền vào chứ không tự tạo ở từng màn hình: nó thuộc phạm vi Activity
+ * (xem `MainActivity`) để trạng thái cập nhật không bị mất khi người dùng chuyển màn hình, và
+ * để băng nhắc ở Thư viện nói cùng một chuyện với khối trong Cài đặt.
  */
 @Composable
 fun ScanVietNavHost(
+    updateViewModel: UpdateViewModel,
     navController: NavHostController = rememberNavController(),
 ) {
     NavHost(
@@ -34,6 +40,7 @@ fun ScanVietNavHost(
                 },
                 onOpenTrash = { navController.navigate(ScanVietRoutes.TRASH) },
                 onOpenSettings = { navController.navigate(ScanVietRoutes.SETTINGS) },
+                updateViewModel = updateViewModel,
             )
         }
 
@@ -58,6 +65,7 @@ fun ScanVietNavHost(
             SettingsScreen(
                 onBack = { navController.popBackStack() },
                 onOpenTrash = { navController.navigate(ScanVietRoutes.TRASH) },
+                updateViewModel = updateViewModel,
             )
         }
 

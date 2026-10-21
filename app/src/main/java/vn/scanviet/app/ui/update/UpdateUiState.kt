@@ -24,6 +24,18 @@ sealed interface UpdateUiState {
     /** Có bản mới, chờ người dùng quyết định. */
     data class Available(val release: AppRelease) : UpdateUiState
 
+    /**
+     * Người dùng đã đóng lời nhắc ở màn hình Thư viện.
+     *
+     * Vì sao giữ lại `release` thay vì quay về [Idle]: khối "Cập nhật" trong Cài đặt vẫn phải
+     * hiện bản mới và nút tải. Nếu xoá mất thông tin bản phát hành, người dùng đóng lời nhắc
+     * xong sẽ không còn cách nào tải bản mới.
+     *
+     * Vì sao không lưu xuống đĩa: đây là lựa chọn cho **phiên làm việc này**. Lần sau mở ứng
+     * dụng, người dùng thấy lại lời nhắc — họ đã bỏ qua một lần chứ chưa từ chối cập nhật.
+     */
+    data class BannerDismissed(val release: AppRelease) : UpdateUiState
+
     /** Đang tải APK về máy. */
     data class Downloading(val downloadedBytes: Long, val totalBytes: Long) : UpdateUiState {
 

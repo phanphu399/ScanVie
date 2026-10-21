@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import java.io.IOException
 import javax.inject.Inject
@@ -38,6 +39,7 @@ class DataStoreSettingsRepository @Inject constructor(
                 // vậy một giá trị lạ (do bản cũ ghi vào) không làm ứng dụng hỏng.
                 ocrEngineKind = OcrEngineKind.fromStorage(preferences[Keys.OCR_ENGINE]),
                 ocrModelQuality = OcrModelQuality.fromStorage(preferences[Keys.OCR_MODEL]),
+                lastUpdateCheckAt = preferences[Keys.LAST_UPDATE_CHECK_AT] ?: 0L,
             )
         }
 
@@ -65,6 +67,10 @@ class DataStoreSettingsRepository @Inject constructor(
         dataStore.edit { preferences -> preferences[Keys.OCR_MODEL] = quality.storageValue }
     }
 
+    override suspend fun setLastUpdateCheckAt(millis: Long) {
+        dataStore.edit { preferences -> preferences[Keys.LAST_UPDATE_CHECK_AT] = millis }
+    }
+
     private fun String?.toThemePreference(): ThemePreference =
         ThemePreference.entries.firstOrNull { it.name == this } ?: ThemePreference.SYSTEM
 
@@ -83,6 +89,9 @@ class DataStoreSettingsRepository @Inject constructor(
          */
         val OCR_ENGINE = stringPreferencesKey("ocr_engine")
         val OCR_MODEL = stringPreferencesKey("ocr_model")
+
+        /** Thời điểm kiểm tra cập nhật gần nhất (mili-giây). Thiếu khoá này = chưa từng kiểm tra. */
+        val LAST_UPDATE_CHECK_AT = longPreferencesKey("last_update_check_at")
     }
 
     private companion object {

@@ -27,4 +27,13 @@ interface SettingsRepository {
      * chạy đầu sau khi đổi sẽ chậm hơn một chút — đánh đổi để tiết kiệm dung lượng máy.
      */
     suspend fun setOcrModelQuality(quality: OcrModelQuality)
+
+    /**
+     * Ghi lại thời điểm kiểm tra cập nhật gần nhất.
+     *
+     * Ứng dụng tự giới hạn tần suất kiểm tra bằng giá trị này (xem `MainViewModel`), nên nó
+     * phải được lưu xuống đĩa chứ không chỉ giữ trong bộ nhớ — nếu chỉ giữ trong bộ nhớ thì
+     * mỗi lần khởi động lại là một lời gọi mạng.
+     */
+    suspend fun setLastUpdateCheckAt(millis: Long)
 }

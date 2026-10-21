@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -134,6 +135,34 @@ class DataStoreSettingsRepositoryTest {
         assertEquals(OcrModelQuality.DEFAULT, repository.settings.first().ocrModelQuality)
     }
 
+    @Test
+    fun `moc kiem tra cap nhat duoc luu va doc lai dung`() = runTest {
+        repository.setLastUpdateCheckAt(1_700_000_000_000L)
+
+        val preferences = store.data.first()
+
+        // Phải nằm trên đĩa, không chỉ trong bộ nhớ: nếu chỉ giữ trong bộ nhớ thì mỗi lần khởi
+        // động lại ứng dụng là một lời gọi mạng mới, đúng thứ việc giới hạn 24 giờ muốn tránh.
+        assertEquals(1_700_000_000_000L, preferences[LAST_UPDATE_CHECK_AT])
+        assertEquals(1_700_000_000_000L, repository.settings.first().lastUpdateCheckAt)
+    }
+
+    @Test
+    fun `chua kiem tra lan nao thi moc bang 0`() = runTest {
+        // 0 là "chưa từng kiểm tra" theo hợp đồng của AppSettings.lastUpdateCheckAt: lần mở
+        // ứng dụng đầu tiên phải kích hoạt kiểm tra ngay.
+        assertEquals(0L, repository.settings.first().lastUpdateCheckAt)
+    }
+
+    @Test
+    fun `gia tri luc cua moc kiem tra khong lam ung dung hong`() = runTest {
+        store.edit { preferences -> preferences[LAST_UPDATE_CHECK_AT] = -1L }
+
+        // File cài đặt hỏng hoặc bản cũ ghi giá trị vô lý: đọc ra giá trị đó thay vì ném lỗi.
+        // Tầng quyết định (UpdateCheckSchedule) đã tự xử lý giá trị <= 0.
+        assertEquals(-1L, repository.settings.first().lastUpdateCheckAt)
+    }
+
     /**
      * Khoá thật dùng trong [DataStoreSettingsRepository].
      *
@@ -143,5 +172,6 @@ class DataStoreSettingsRepositoryTest {
     private companion object {
         val OCR_ENGINE = stringPreferencesKey("ocr_engine")
         val OCR_MODEL = stringPreferencesKey("ocr_model")
+        val LAST_UPDATE_CHECK_AT = longPreferencesKey("last_update_check_at")
     }
 }

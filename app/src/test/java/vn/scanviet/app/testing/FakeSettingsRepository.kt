@@ -53,4 +53,8 @@ class FakeSettingsRepository(
     override suspend fun setOcrModelQuality(quality: OcrModelQuality) {
         state.update { it.copy(ocrModelQuality = quality) }
     }
+
+    override suspend fun setLastUpdateCheckAt(millis: Long) {
+        state.update { it.copy(lastUpdateCheckAt = millis) }
+    }
 }

@@ -41,7 +41,7 @@ import vn.scanviet.app.core.DispatcherProvider
 class ApkInstaller @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dispatchers: DispatcherProvider,
-) {
+) : UpdateInstaller {
 
     /**
      * Tải APK từ [url] về bộ nhớ đệm.
@@ -49,7 +49,10 @@ class ApkInstaller @Inject constructor(
      * @return file đã tải xong, sẵn sàng để cài.
      * @throws IOException khi không tải được hoặc máy chủ trả về lỗi.
      */
-    suspend fun download(url: String, onProgress: (bytesRead: Long, totalBytes: Long) -> Unit): File =
+    override suspend fun download(
+        url: String,
+        onProgress: (bytesRead: Long, totalBytes: Long) -> Unit,
+    ): File =
         withContext(dispatchers.io) {
             val target = targetFile()
             // Xoá bản tải dở trước đó: một file .part sót lại sẽ khiến lần sau tưởng đã có sẵn.
@@ -68,7 +71,16 @@ class ApkInstaller @Inject constructor(
                 val code = connection.responseCode
                 if (code !in 200..299) throw IOException("Máy chủ trả về mã $code")
 
-                val total = connection.contentLengthLong
+                // `getContentLengthLong()` chỉ có từ API 24, mà ứng dụng còn hỗ trợ API 23
+                // (Android 6). Gọi thẳng sẽ ném `NoSuchMethodError` trên máy Android 6 — lỗi
+                // chỉ xuất hiện trên thiết bị thật, không lộ ra khi biên dịch. Dùng bản `int`
+                // cũ trên máy thấp: APK vài chục MB vẫn nằm trong giới hạn của `int`.
+                val total = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    connection.contentLengthLong
+                } else {
+                    @Suppress("DEPRECATION")
+                    connection.contentLength.toLong()
+                }
                 connection.inputStream.use { input ->
                     target.outputStream().use { output ->
                         val buffer = ByteArray(BUFFER_SIZE)
@@ -93,7 +105,7 @@ class ApkInstaller @Inject constructor(
         }
 
     /** @return true nếu ứng dụng được phép mở trình cài đặt trên máy này. */
-    fun canRequestPackageInstalls(): Boolean =
+    override fun canRequestPackageInstalls(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.packageManager.canRequestPackageInstalls()
         } else {
@@ -102,7 +114,7 @@ class ApkInstaller @Inject constructor(
         }
 
     /** Mở màn hình Cài đặt để người dùng tự bật quyền cài đặt cho ứng dụng này. */
-    fun openInstallPermissionSettings() {
+    override fun openInstallPermissionSettings() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
             data = Uri.parse("package:${context.packageName}")
@@ -116,7 +128,7 @@ class ApkInstaller @Inject constructor(
      *
      * @throws IOException khi không tạo được `content://` URI (thiếu khai báo FileProvider).
      */
-    fun install(apkFile: File) {
+    override fun install(apkFile: File) {
         val uri = FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
@@ -131,7 +143,7 @@ class ApkInstaller @Inject constructor(
     }
 
     /** Xoá file APK đã tải. Gọi sau khi người dùng cài xong hoặc huỷ. */
-    fun clearDownloadedApk() {
+    override fun clearDownloadedApk() {
         targetFile().delete()
     }
 

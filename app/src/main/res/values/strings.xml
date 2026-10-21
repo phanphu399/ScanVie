@@ -192,6 +192,10 @@
     <string name="update_unsupported">Bản phát hành này thiếu file cài đặt. Hãy tải bản mới từ trang phát hành.</string>
     <string name="update_permission_needed">Ứng dụng cần quyền “Cài đặt ứng dụng không rõ nguồn gốc” để cập nhật. Hãy bật quyền rồi bấm tải lại.</string>
     <string name="update_notes_label">Có gì mới</string>
+    <string name="update_banner_title">Đã có bản cập nhật</string>
+    <string name="update_banner_message">Phiên bản %1$s · %2$s</string>
+    <string name="update_banner_message_no_size">Phiên bản %1$s</string>
+    <string name="update_banner_dismiss">Bỏ qua</string>
 
     <!-- Lỗi -->
     <string name="error_generic">Có lỗi xảy ra. Vui lòng thử lại.</string>
