@@ -66,6 +66,7 @@
     <string name="detail_ocr_running">Đang nhận dạng chữ…</string>
     <string name="detail_ocr_running_pages">Đang nhận dạng %1$d trang…</string>
     <string name="detail_ocr_done_count">Đã nhận dạng %1$d trang.</string>
+    <string name="detail_ocr_already_done">Mọi trang đã có chữ nhận dạng.</string>
     <string name="detail_ocr_empty">Không tìm thấy chữ trong tài liệu này.</string>
     <string name="detail_ocr_result_label">Chữ nhận dạng được</string>
     <string name="detail_ocr_copy">Copy toàn bộ chữ</string>
@@ -73,6 +74,8 @@
     <string name="detail_ocr_page_header">Trang %1$d</string>
     <string name="detail_ocr_status_none">Chưa nhận dạng chữ. Bấm “Nhận dạng chữ” để tạo cả lớp chữ cho PDF.</string>
     <string name="detail_ocr_status_failed">Lần nhận dạng trước bị lỗi. Hãy thử lại.</string>
+    <string name="detail_ocr_failed_title">Chưa nhận dạng được chữ</string>
+    <string name="detail_ocr_retry">Thử nhận dạng lại</string>
     <string name="detail_ocr_warning_pdf">PDF xuất ra sẽ KHÔNG copy được chữ nếu bạn chưa nhận dạng.</string>
     <string name="detail_open_page">Mở trang %1$d</string>
     <string name="detail_pages_hint">Bấm một trang để xem to và phóng to được.</string>
@@ -205,7 +208,9 @@
     <string name="error_unreadable_scan_page">Không đọc được ảnh vừa quét. Hãy quét lại trang đó.</string>
     <string name="error_page_image_missing">Trang %1$d bị thiếu file ảnh trên máy nên không xuất được PDF.</string>
     <string name="error_export_failed">Không tạo được file PDF. Hãy thử lại hoặc chọn nơi lưu khác.</string>
-    <string name="error_ocr_failed">Không nhận dạng được chữ. Hãy kiểm tra ảnh có bị mờ hoặc mất file không, rồi thử lại.</string>
+    <string name="error_ocr_no_text">Không tìm thấy chữ nào trong tài liệu. Ảnh có thể bị mờ, thiếu sáng, hoặc nghiêng. Hãy quét lại trang rõ hơn.</string>
+    <string name="error_ocr_page_unreadable">Không đọc được file ảnh của trang trên máy. File có thể đã bị xoá hoặc hỏng — hãy quét lại tài liệu.</string>
+    <string name="error_ocr_engine_unavailable">Không khởi động được bộ nhận dạng chữ. Có thể máy hết dung lượng trống. Hãy giải phóng dung lượng rồi thử lại.</string>
 
     <!-- Nội dung mô tả cho trình đọc màn hình -->
     <string name="cd_open_settings">Mở cài đặt</string>

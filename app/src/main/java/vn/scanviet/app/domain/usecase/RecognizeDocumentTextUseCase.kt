@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import vn.scanviet.app.domain.DocumentNotFoundException
 import vn.scanviet.app.domain.OcrFailedException
+import vn.scanviet.app.domain.OcrFailureReason
 import vn.scanviet.app.domain.model.OcrStatus
 import vn.scanviet.app.domain.model.OcrText
 import vn.scanviet.app.domain.model.StoredOcrLine
@@ -74,6 +75,15 @@ class RecognizeDocumentTextUseCase @Inject constructor(
         val results = mutableListOf<OcrText>()
         var newlyRecognized = 0
 
+        // Đếm lý do thất bại để thông báo cho người dùng biết PHẢI LÀM GÌ. Trước đây mọi
+        // trường hợp đều thành một câu "Lỗi nhận dạng" chung, nên người dùng không phân biệt
+        // được "ảnh mờ quá" (chụp lại) với "không đọc được file" (lỗi hệ thống).
+        var unreadablePages = 0
+        var engineFailedPages = 0
+
+        /** Số trang engine chạy xong nhưng không tìm thấy dòng chữ nào. */
+        var emptyPages = 0
+
         repository.setOcrStatus(documentId, OcrStatus.RUNNING)
 
         for (page in pages.sortedBy { it.pageIndex }) {
@@ -83,34 +93,81 @@ class RecognizeDocumentTextUseCase @Inject constructor(
                 results += existing
                 continue
             }
-            if (!storage.exists(page.imageFile)) continue
-            val file = runCatching { storage.resolve(page.imageFile) }.getOrNull() ?: continue
+            if (!storage.exists(page.imageFile)) {
+                unreadablePages++
+                continue
+            }
+            val file = runCatching { storage.resolve(page.imageFile) }.getOrNull()
+            if (file == null) {
+                unreadablePages++
+                continue
+            }
             // Lỗi của MỘT trang bị bỏ qua (quyết định 2 ở trên), nhưng lỗi cài đặt model đã
             // được xử lý trước vòng lặp nên không bị che ở đây.
+            //
+            // Phân biệt hai kiểu thất bại: engine trả `null` nghĩa là KHÔNG ĐỌC ĐƯỢC ẢNH
+            // hoặc KHÔNG KHỞI TẠO ĐƯỢC engine; engine ném lỗi cũng vậy. Còn engine trả về
+            // kết quả với 0 dòng nghĩa là ẢNH KHÔNG CÓ CHỮ — hai việc khác hẳn nhau.
             val recognized = runCatching { engine.recognize(file, page.rotationDegrees) }
-                .getOrNull() ?: continue
+            if (recognized.isFailure) {
+                engineFailedPages++
+                continue
+            }
+            val pageResult = recognized.getOrNull()
+            if (pageResult == null) {
+                engineFailedPages++
+                continue
+            }
+
+            val lines = pageResult.lines.map { line ->
+                StoredOcrLine(
+                    text = line.text,
+                    left = line.left,
+                    top = line.top,
+                    right = line.right,
+                    bottom = line.bottom,
+                )
+            }
+            // Trang chạy xong nhưng KHÔNG có dòng chữ nào vẫn được lưu (để lần sau không nhận
+            // dạng lại trang đó — xem `OcrPageEntity`), nhưng phải đếm riêng. Nếu không đếm,
+            // ta không phân biệt được "cả tài liệu không có chữ" với "engine hỏng".
+            if (lines.isEmpty()) emptyPages++
 
             results += OcrText(
                 documentId = documentId,
                 pageIndex = page.pageIndex,
-                lines = recognized.lines.map { line ->
-                    StoredOcrLine(
-                        text = line.text,
-                        left = line.left,
-                        top = line.top,
-                        right = line.right,
-                        bottom = line.bottom,
-                    )
-                },
-                imageWidth = recognized.width,
-                imageHeight = recognized.height,
+                lines = lines,
+                imageWidth = pageResult.width,
+                imageHeight = pageResult.height,
             )
             newlyRecognized++
         }
 
-        if (results.isEmpty()) {
+        // Điều kiện phải là CÓ ÍT NHẤT MỘT DÒNG CHỮ, không phải "có ít nhất một trang".
+        //
+        // Đây là lỗi thật đã bị bắt bởi test: bản trước kiểm tra `results.isEmpty()`. Khi
+        // engine chạy xong mà ảnh không có chữ, `results` chứa một `OcrText` với `lines` rỗng
+        // — tức `results` KHÔNG rỗng. Hệ quả: tài liệu được đánh dấu `DONE` dù không có một
+        // chữ nào, người dùng thấy "Đã có chữ", mở ra thì trống, và PDF xuất ra thiếu lớp chữ
+        // mà không có cảnh báo nào.
+        val totalLines = results.sumOf { it.lines.size }
+        if (totalLines == 0) {
             repository.setOcrStatus(documentId, OcrStatus.FAILED)
-            throw OcrFailedException(documentId = documentId, failedPageCount = pages.size)
+            throw OcrFailedException(
+                documentId = documentId,
+                failedPageCount = pages.size,
+                reason = when {
+                    // Không đọc được ảnh nhiều hơn hẳn -> vấn đề file, không phải nội dung ảnh.
+                    unreadablePages > 0 && unreadablePages >= engineFailedPages ->
+                        OcrFailureReason.PAGE_UNREADABLE
+
+                    // Engine trả `null`/ném lỗi cho mọi trang -> engine không dùng được.
+                    engineFailedPages > 0 -> OcrFailureReason.ENGINE_UNAVAILABLE
+
+                    // Còn lại: engine chạy được, ảnh đọc được, nhưng không có chữ nào.
+                    else -> OcrFailureReason.NO_TEXT_FOUND
+                },
+            )
         }
 
         repository.replaceOcrText(documentId, results)

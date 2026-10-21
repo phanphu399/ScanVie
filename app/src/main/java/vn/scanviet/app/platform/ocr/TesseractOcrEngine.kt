@@ -112,12 +112,20 @@ class TesseractOcrEngine @Inject constructor(
                     engine.setImage(rotated)
                     // Đọc qua iterator để có TOẠ ĐỘ THẬT. `utF8Text` không trả hộp bao, và
                     // thiếu hộp bao thì lớp chữ ẩn trong PDF không vẽ được (xem `OcrLine`).
-                    engine.resultIterator?.let { iterator ->
-                        readLines(iterator, rotated.width, rotated.height).toPageResult(
-                            width = rotated.width,
-                            height = rotated.height,
-                        )
-                    }
+                    //
+                    // PHẢI dùng `?: return@withLock null` chứ không phải `?.let { }`. Bản cũ
+                    // viết `engine.resultIterator?.let { ... }`: khi iterator là `null`, khối
+                    // `let` không chạy, `withLock` trả về `Unit`, và vì `withContext` suy ra
+                    // kiểu chung `Any?`, hàm `recognize` **lặng lẽ trả về `Unit`** thay vì
+                    // `OcrPageResult?`. Bên gọi (`runCatching { engine.recognize(...) }`) chỉ
+                    // kiểm tra `null`, nên `Unit` đi lọt qua như một kết quả "thành công"
+                    // không có dòng chữ nào — đúng triệu chứng "Lỗi nhận dạng" mà không rõ
+                    // nguyên nhân. Trả `null` tường minh để lỗi không bị che.
+                    val iterator = engine.resultIterator ?: return@withLock null
+                    readLines(iterator, rotated.width, rotated.height).toPageResult(
+                        width = rotated.width,
+                        height = rotated.height,
+                    )
                 }
             } finally {
                 rotated.recycle()

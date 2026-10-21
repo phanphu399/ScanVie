@@ -26,10 +26,12 @@ import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -265,6 +267,18 @@ fun DocumentDetailScreen(
 
                     if (isRecognizing) {
                         item { RecognizingCard(pageCount = state.pages.size) }
+                    }
+
+                    // Lần nhận dạng trước thất bại: hiện lý do + nút thử lại.
+                    //
+                    // Vì sao cần thẻ riêng thay vì chỉ dựa vào chip trạng thái: chip trong
+                    // danh sách chỉ nói "Lỗi nhận dạng" (một từ), không nói PHẢI LÀM GÌ. Ở
+                    // đây có cả nguyên nhân lẫn hành động — và đây cũng là chỗ duy nhất người
+                    // dùng thử lại được, vì `autoRecognize` đã cố ý không tự chạy lại nữa.
+                    if (state.ocrFailed && !isRecognizing) {
+                        item {
+                            OcrFailedCard(onRetry = viewModel::onRetryRecognize)
+                        }
                     }
 
                     if (state.hasOcrText) {
@@ -609,6 +623,62 @@ private fun RecognizingCard(pageCount: Int) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Lần nhận dạng trước thất bại: nói rõ chuyện gì xảy ra và cho người dùng thử lại.
+ *
+ * Vì sao KHÔNG tự chạy lại: xem [DocumentDetailUiState.Loaded.ocrFailed] — cùng ảnh, cùng
+ * engine thì kết quả y hệt, nên tự chạy lại chỉ tốn thời gian. Người dùng phải chủ động bấm
+ * sau khi đã sửa nguyên nhân (đổi engine trong Cài đặt, giải phóng dung lượng, quét lại trang).
+ *
+ * Vì sao dùng màu cảnh báo chứ không phải màu lỗi: "ảnh mờ, không tìm thấy chữ" là chuyện
+ * bình thường khi quét tài liệu, không phải ứng dụng hỏng. Màu lỗi đỏ sẽ khiến người dùng
+ * nghĩ ứng dụng có vấn đề và gỡ đi.
+ */
+@Composable
+private fun OcrFailedCard(onRetry: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.detail_ocr_failed_title),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.detail_ocr_status_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.clickable(onClick = onRetry),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(R.string.detail_ocr_retry))
             }
         }
     }

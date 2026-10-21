@@ -2,6 +2,7 @@ package vn.scanviet.app.ui.library
 
 import vn.scanviet.app.domain.model.Document
 import vn.scanviet.app.domain.model.DocumentPage
+import vn.scanviet.app.domain.model.OcrStatus
 import vn.scanviet.app.domain.model.OcrText
 import vn.scanviet.app.ui.common.UiError
 
@@ -25,6 +26,18 @@ sealed interface DocumentDetailUiState {
 
         /** true khi đã có chữ nhận dạng được cho ít nhất một trang. */
         val hasOcrText: Boolean get() = ocrText.any { it.lines.isNotEmpty() }
+
+        /**
+         * true khi lần nhận dạng gần nhất đã thất bại và người dùng phải chủ động thử lại.
+         *
+         * Vì sao cần cờ này: [autoRecognize] tự chạy khi mở tài liệu, nhưng nếu lần trước
+         * đã `FAILED` thì chạy lại là **chắc chắn thất bại y hệt** — cùng ảnh, cùng engine,
+         * cùng kết quả. Với tài liệu 20 trang và model BEST, mỗi lần mở sẽ đốt hàng chục
+         * giây vô ích. Cờ này chặn vòng lặp đó, nhưng KHÔNG chặn nút "Nhận dạng lại" trong
+         * màn hình chi tiết: người dùng vẫn thử lại được sau khi đã sửa nguyên nhân (đổi
+         * engine, giải phóng dung lượng, quét lại trang).
+         */
+        val ocrFailed: Boolean get() = document.ocrStatus == OcrStatus.FAILED
     }
 
     data class Failed(val error: UiError) : DocumentDetailUiState

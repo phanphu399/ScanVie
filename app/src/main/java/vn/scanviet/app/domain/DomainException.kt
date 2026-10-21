@@ -38,5 +38,14 @@ class PageImageMissingException(val documentId: String, val pageIndex: Int) : Do
  * Một thông báo lỗi rõ ràng để họ thử lại (hoặc chụp lại trang) mới là hành vi đúng.
  *
  * Không mang theo đường dẫn ảnh hay nội dung tài liệu — chỉ id và số trang hỏng.
+ *
+ * @param reason vì sao không trang nào nhận dạng được. Trước đây mọi trường hợp đều gộp
+ *   thành một thông báo chung "Lỗi nhận dạng", khiến người dùng (và cả người phát triển)
+ *   không thể phân biệt "ảnh mờ, không có chữ" với "không đọc được file ảnh" — hai việc
+ *   cần hai cách xử lý hoàn toàn khác nhau. Xem [OcrFailureReason].
  */
-class OcrFailedException(val documentId: String, val failedPageCount: Int) : DomainException()
+class OcrFailedException(
+    val documentId: String,
+    val failedPageCount: Int,
+    val reason: OcrFailureReason = OcrFailureReason.NO_TEXT_FOUND,
+) : DomainException()

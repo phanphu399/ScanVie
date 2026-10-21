@@ -129,16 +129,33 @@ Hành vi khi thiếu file khoá (đã kiểm chứng thật, không suy đoán):
 | `ContentUriDocumentOutputTargetTest` | 5 | ghi đè đúng |
 | `UpdateUiStateTest` | 5 | **phần trăm tải** |
 | `ScanVietDatabaseMigrationTest` | 3 | **nâng cấp Room v1→v2** |
-| Còn lại | — | `DocumentDetailViewModelTest`, `CreateDocumentUseCaseTest`, `RenameDocumentUseCaseTest`, `ImportScannedDocumentUseCaseTest`, `RobolectricPdfLimitationTest` |
+| Còn lại | — | `DocumentDetailViewModelTest` (18), `CreateDocumentUseCaseTest`, `RenameDocumentUseCaseTest`, `ImportScannedDocumentUseCaseTest`, `RobolectricPdfLimitationTest` |
 
 Đối chiếu với lần chạy 193 test trước Giai đoạn B: **+41 test**, tập trung vào phần mới: chọn engine theo cài đặt, toạ độ dòng từ Tesseract, giải nén model, lưu cài đặt, và tự động nhận dạng sau khi lưu.
 
-**Ba lỗi thật đã bắt được trong các lần chạy này:**
-1. `NormalizedOcrLineTest` — kiểm chứng bằng cách **cố tình tái tạo lỗi cũ** (`bottom = 0f`) thì **6/12 test gãy**. Nếu lỗi đó lọt ra bản phát hành, **toàn bộ chữ biến mất khỏi PDF** mà không có lỗi nào được báo.
+**Lần chạy 284 test (bản 0.6.1):** thêm **12 test** so với 272, tập trung vào bốn lỗi ở mục dưới — phân biệt lý do thất bại, trang rỗng không tính là thành công, và không tự chạy lại OCR khi đã thất bại.
+
+**Ba lỗi thật đã bắt được trong các lần chạy này:**1. `NormalizedOcrLineTest` — kiểm chứng bằng cách **cố tình tái tạo lỗi cũ** (`bottom = 0f`) thì **6/12 test gãy**. Nếu lỗi đó lọt ra bản phát hành, **toàn bộ chữ biến mất khỏi PDF** mà không có lỗi nào được báo.
 2. `DataStoreSettingsRepositoryTest` — 4/6 test gãy vì **lỗi ở chính test** (hai `DataStore` cùng mở một file). Đây là lỗi thiết kế test thật, đã sửa lại cho đúng ràng buộc một-DataStore của ứng dụng. Điều này cũng chứng minh bộ test chạy trên DataStore **thật**, không phải đồ giả.
 3. **Công tắc "Tự động nhận dạng chữ sau khi quét" là một điều khiển không hoạt động.** Nó được lưu vào cài đặt và hiển thị đúng, nhưng **không được đọc ở bất kỳ đâu** — bật hay tắt đều không thay đổi gì. Phát hiện khi rà lại toàn bộ luồng quét. Đã sửa: lưu xong thì nhận dạng chữ nếu công tắc bật, và **lỗi nhận dạng không làm mất tài liệu vừa lưu**. 8 test mới bảo vệ hành vi này; đã kiểm chứng bằng cách **cố tình bỏ phần gọi nhận dạng → 4 test gãy**.
 
 Một lỗi thật đã bắt được trong lần chạy này: test `VersionComparatorTest` phát hiện `VersionComparator` **im lặng coi `"v0.5.0"` là phiên bản 0**. Đã sửa **mã nguồn** (bỏ tiền tố `v`/`V` trong `parse`) chứ không sửa test cho qua — vì hậu quả của lỗi đó là ứng dụng **không bao giờ** báo có bản cập nhật, mà cũng không hề báo lỗi.
+
+### Bốn lỗi thật trong luồng nhận dạng chữ (bản 0.6.1)
+
+Người dùng báo: danh sách hiện nhãn đỏ **"Lỗi nhận dạng"**, mở tài liệu thì phần chữ **hoàn toàn trống**. Rà lại toàn bộ luồng tìm được bốn lỗi thật, mỗi lỗi đều có test khoá lại:
+
+1. **Trang "đã chạy nhưng rỗng" bị tính là thành công.** Điều kiện kiểm tra là `results.isEmpty()` — tức "không có TRANG nào". Nhưng khi engine chạy xong mà ảnh không có chữ, `results` chứa một `OcrText` với `lines` rỗng, nên `results` **không** rỗng. Hệ quả: tài liệu được đánh dấu `DONE` dù không có một chữ nào, người dùng thấy "Đã có chữ", mở ra thì trống, và PDF xuất ra thiếu lớp chữ **mà không có cảnh báo nào**. Đã sửa thành kiểm tra **số DÒNG chữ**, không phải số trang.
+
+2. **Lỗi kiểu bị che trong `TesseractOcrEngine`.** Bản cũ viết `engine.resultIterator?.let { ... }`. Khi iterator là `null`, khối `let` không chạy, `withLock` trả về `Unit`, và vì `withContext` suy ra kiểu chung `Any?`, hàm `recognize` **lặng lẽ trả về `Unit`** thay vì `OcrPageResult?`. Bên gọi chỉ kiểm tra `null`, nên `Unit` đi lọt qua như một kết quả "thành công" không có dòng chữ nào. Đã sửa thành `?: return@withLock null` để lỗi không bị che.
+
+3. **Mọi nguyên nhân thất bại đều thành một câu chung "Lỗi nhận dạng".** Người dùng không phân biệt được "ảnh mờ, quét lại đi" với "máy hết dung lượng" — hai hành động hoàn toàn khác nhau. Đã thêm `OcrFailureReason` (`NO_TEXT_FOUND` / `PAGE_UNREADABLE` / `ENGINE_UNAVAILABLE`) và ba thông báo riêng.
+
+4. **Mở lại tài liệu đã `FAILED` thì tự chạy lại OCR vô hạn.** `autoRecognize` chỉ kiểm tra "đã có chữ chưa", mà tài liệu lỗi thì không có chữ — nên **mỗi lần mở** lại chạy lại toàn bộ, chắc chắn thất bại y hệt, đốt hàng chục giây với model BEST. Đã thêm cờ `ocrFailed` chặn vòng lặp đó, kèm nút **"Thử nhận dạng lại"** trong màn hình chi tiết để người dùng chủ động chạy sau khi đã sửa nguyên nhân.
+
+> **Lỗi công cụ đáng ghi nhớ:** khai báo một `enum class` top-level **cùng file** với một `sealed class` và các class con làm trình phân tích FIR của Kotlin (mà `lint` dùng) gãy với `RAW_FIR to TYPES` khi phân tích `androidTest`. Triệu chứng rất dễ chẩn đoán nhầm thành "lỗi mã nguồn của tôi": `:app:lintDebug` một mình thì PASS, chỉ `:app:lintAnalyzeDebugAndroidTest` gãy, và thông báo lỗi chỉ đổ vào stack của compiler. **Cách chẩn đoán quyết định:** `git stash` rồi chạy lại — lỗi biến mất nghĩa là do thay đổi của mình, không phải lỗi có sẵn. Sửa bằng cách tách enum ra file riêng (`domain/OcrFailureReason.kt`), vừa hết lỗi vừa gọn hơn.
+
+**Kết quả sau khi sửa:** **284 unit test / 0 lỗi / 0 bỏ qua / 27 suite** (tăng 12 test), `assembleDebug` + `assembleRelease` + `lintDebug` + `compileDebugAndroidTestKotlin` đều BUILD SUCCESSFUL.
 
 Test dùng **Robolectric** (Room in-memory + `filesDir`/`cacheDir` giả) nên chạy được trên máy không có emulator. Chưa có test instrumented — sẽ bổ sung khi có thiết bị/emulator.
 

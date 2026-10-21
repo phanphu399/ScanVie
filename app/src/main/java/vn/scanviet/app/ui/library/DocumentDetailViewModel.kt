@@ -116,16 +116,48 @@ class DocumentDetailViewModel @Inject constructor(
      * lãng phí hàng chục giây. [RecognizeDocumentTextUseCase] cũng đã bỏ qua trang có chữ, nên
      * đây là lớp chặn thứ hai ở phía UI để tránh cả việc hiện vòng xoay vô ích.
      *
-     * **Vì sao lỗi không hiện thông báo:** nhận dạng là việc ngầm. Báo lỗi cho một việc người
-     * dùng không yêu cầu làm họ tưởng ứng dụng hỏng. Nếu họ cần lớp chữ chuẩn, đường xuất PDF
-     * ([ensureTextLayer]) vẫn chạy lại và báo lỗi đúng lúc — khi họ thực sự cần kết quả.
+     * **Vì sao KHÔNG tự chạy lại khi lần trước đã thất bại** ([DocumentDetailUiState.Loaded.ocrFailed]):
+     * chạy lại với cùng ảnh, cùng engine là chắc chắn thất bại y hệt. Không có cờ chặn, mỗi
+     * lần mở tài liệu sẽ đốt hàng chục giây cho một việc đã biết trước kết quả. Người dùng thử
+     * lại bằng [onRetryRecognize] sau khi đã sửa nguyên nhân.
+     *
+     * **Vì sao lỗi ở lần chạy TỰ ĐỘNG vẫn im lặng:** nhận dạng là việc ngầm. Báo lỗi cho một
+     * việc người dùng không yêu cầu làm họ tưởng ứng dụng hỏng. Trạng thái `FAILED` vẫn được
+     * ghi lại và màn hình chi tiết hiển thị nó kèm nút thử lại — đúng lúc người dùng thực sự
+     * cần kết quả. Ngược lại, [onRetryRecognize] do người dùng bấm nên PHẢI báo lỗi cụ thể.
      */
     fun autoRecognize() {
         val loaded = uiState.value as? DocumentDetailUiState.Loaded ?: return
         if (loaded.hasOcrText) return
+        if (loaded.ocrFailed) return
         if (!beginRecognize()) return
         viewModelScope.launch {
             runCatching { recognizeText(documentId) }
+            _isRecognizing.value = false
+        }
+    }
+
+    /**
+     * Người dùng chủ động thử lại nhận dạng sau khi lần trước thất bại.
+     *
+     * Khác [autoRecognize] ở chỗ **luôn báo lỗi cụ thể** khi thất bại. Người dùng vừa bấm một
+     * nút và đang chờ kết quả; im lặng sẽ khiến họ tưởng nút không hoạt động. Thông báo lỗi
+     * cũng phân biệt được "ảnh không có chữ" (chụp lại) với "không khởi động được bộ nhận dạng"
+     * (giải phóng dung lượng) — xem [vn.scanviet.app.domain.OcrFailureReason].
+     */
+    fun onRetryRecognize() {
+        if (!beginRecognize()) return
+        viewModelScope.launch {
+            runCatching { recognizeText(documentId) }
+                .onSuccess { recognizedPages ->
+                    _message.value = if (recognizedPages > 0) {
+                        UiMessage(R.string.detail_ocr_done_count, listOf(recognizedPages))
+                    } else {
+                        // Không có trang mới nào: mọi trang đã có chữ từ trước.
+                        UiMessage(R.string.detail_ocr_already_done)
+                    }
+                }
+                .onFailure { failure -> _message.value = failure.toUiMessage() }
             _isRecognizing.value = false
         }
     }

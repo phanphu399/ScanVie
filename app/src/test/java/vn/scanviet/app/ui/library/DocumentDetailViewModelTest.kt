@@ -239,6 +239,139 @@ class DocumentDetailViewModelTest {
         }
     }
 
+    // ---------------------------------------------------------------------
+    // Nhận dạng chữ ngầm (lỗi thật đã sửa)
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `mở tài liệu chưa có chữ thì tự nhận dạng ngầm`() = runTest(mainDispatcher) {
+        seedDocument()
+        viewModel.uiState.test {
+            awaitSettled()
+
+            viewModel.autoRecognize()
+
+            // Người dùng không phải biết "OCR" là gì: mở tài liệu là có chữ.
+            assertEquals(1, ocrEngine.callCount)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `lần trước thất bại thì KHÔNG tự chạy lại khi mở tài liệu`() = runTest(mainDispatcher) {
+        seedDocument()
+        // Lần nhận dạng trước đã thất bại: trạng thái FAILED, không có chữ.
+        ocrEngine.failAll = true
+        viewModel.uiState.test {
+            awaitSettled()
+            viewModel.autoRecognize()
+            val firstRun = ocrEngine.callCount
+            assertTrue("Lần đầu phải thử", firstRun > 0)
+
+            // Mở lại tài liệu (hoặc xoay màn hình): lần chạy tự động tiếp theo.
+            viewModel.autoRecognize()
+
+            // Cùng ảnh, cùng engine => chắc chắn thất bại y hệt. Tự chạy lại chỉ đốt hàng chục
+            // giây cho một kết quả đã biết trước. Người dùng thử lại bằng `onRetryRecognize`.
+            assertEquals("Không được tự chạy lại khi đã FAILED", firstRun, ocrEngine.callCount)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `lần chạy tự động thất bại thì im lặng, không làm người dùng tưởng ứng dụng hỏng`() =
+        runTest(mainDispatcher) {
+        seedDocument()
+        ocrEngine.failAll = true
+        viewModel.uiState.test {
+            awaitSettled()
+
+            viewModel.autoRecognize()
+
+            // Báo lỗi cho một việc người dùng KHÔNG yêu cầu làm họ tưởng ứng dụng hỏng.
+            // Trạng thái FAILED vẫn được ghi lại, và màn hình chi tiết hiển thị nó kèm nút
+            // thử lại — đúng lúc người dùng thực sự cần kết quả.
+            assertNull("Lần chạy tự động không được hiện thông báo lỗi", viewModel.message.value)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `thử lại thủ công thì chạy dù lần trước đã thất bại và báo lỗi cụ thể`() =
+        runTest(mainDispatcher) {
+            seedDocument()
+            ocrEngine.failAll = true
+            viewModel.uiState.test {
+                awaitSettled()
+                viewModel.autoRecognize()
+                val before = ocrEngine.callCount
+
+                viewModel.onRetryRecognize()
+
+                // Người dùng vừa bấm một nút và đang chờ: im lặng sẽ khiến họ tưởng nút hỏng.
+                assertTrue("Nút thử lại phải thật sự chạy", ocrEngine.callCount > before)
+                assertNotNull("Phải báo lỗi cụ thể", viewModel.message.value)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `thử lại sau khi sửa nguyên nhân thì nhận dạng được và báo số trang`() =
+        runTest(mainDispatcher) {
+            seedDocument()
+            // Lần đầu engine hỏng; lần sau engine chạy được — người dùng đã sửa nguyên nhân.
+            ocrEngine.failAll = true
+            viewModel.uiState.test {
+                awaitSettled()
+                viewModel.autoRecognize()
+
+                ocrEngine.failAll = false
+                viewModel.onRetryRecognize()
+
+                assertEquals(R.string.detail_ocr_done_count, messageRes())
+                assertEquals(listOf(1), viewModel.message.value?.formatArgs)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `thử lại khi tài liệu vẫn không có chữ thì báo lý do chứ không báo đã xong`() =
+        runTest(mainDispatcher) {
+            seedDocument()
+            // Engine chạy được, ảnh không có chữ. `OcrText` rỗng vẫn được lưu để lần sau
+            // không nhận dạng lại trang đó (trang trắng không bao giờ có chữ).
+            ocrEngine.returnEmptyLines = true
+            viewModel.uiState.test {
+                awaitSettled()
+                viewModel.onRetryRecognize()
+                assertNotNull(viewModel.message.value?.resId)
+
+                viewModel.onMessageShown()
+                viewModel.onRetryRecognize()
+
+                // Chạy lại vẫn không có chữ: phải nói rõ LÝ DO (ảnh không có chữ), không được
+                // báo "đã xong" — vì như vậy người dùng tưởng tài liệu đã có chữ và đi tìm.
+                assertEquals(R.string.error_ocr_no_text, messageRes())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `không đọc được ảnh thì báo rõ là lỗi lưu trữ chứ không phải ảnh không có chữ`() =
+        runTest(mainDispatcher) {
+            seedDocument()
+            // File ảnh biến mất: vấn đề lưu trữ, khác hẳn "ảnh mờ".
+            storage.resolve("documents/$DOC_ID/page_0001.jpg").delete()
+            viewModel.uiState.test {
+                awaitSettled()
+
+                viewModel.onRetryRecognize()
+
+                assertEquals(R.string.error_ocr_page_unreadable, messageRes())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     private fun createViewModel(): DocumentDetailViewModel = DocumentDetailViewModel(
         repository = repository,
         renameDocument = RenameDocumentUseCase(repository),

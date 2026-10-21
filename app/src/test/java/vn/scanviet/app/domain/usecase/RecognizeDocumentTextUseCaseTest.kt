@@ -299,6 +299,91 @@ class RecognizeDocumentTextUseCaseTest {
         assertEquals(OcrStatus.NONE, repository.getDocument(DOC_ID)?.ocrStatus)
     }
 
+    // ---------------------------------------------------------------------
+    // Phân biệt LÝ DO thất bại (lỗi thật đã sửa)
+    // ---------------------------------------------------------------------
+    //
+    // Trước đây mọi trường hợp đều thành một câu "Lỗi nhận dạng" chung. Người dùng không
+    // phân biệt được "ảnh mờ, chụp lại đi" với "máy hết dung lượng" — hai việc cần hai hành
+    // động hoàn toàn khác nhau. Bốn test dưới đây khoá hành vi phân biệt đó lại.
+
+    @Test
+    fun `engine chạy được nhưng ảnh không có chữ thì lý do là NO_TEXT_FOUND`() = runTest {
+        seedDocument(pageCount = 2)
+        engine.returnEmptyLines = true
+
+        val result = runCatching { useCase(DOC_ID) }
+
+        // `OcrPageResult` với `lines` rỗng KHÁC hẳn `null`: engine đã chạy xong và kết luận
+        // ảnh không có chữ. Người dùng nên chụp lại rõ hơn, không phải đi giải phóng ổ đĩa.
+        val error = result.exceptionOrNull()
+        assertTrue("Mong đợi OcrFailedException nhưng nhận $error", error is OcrFailedException)
+        assertEquals(
+            vn.scanviet.app.domain.OcrFailureReason.NO_TEXT_FOUND,
+            (error as OcrFailedException).reason,
+        )
+        assertEquals(2, error.failedPageCount)
+    }
+
+    @Test
+    fun `engine ném lỗi thì lý do là ENGINE_UNAVAILABLE chứ không phải ảnh không có chữ`() = runTest {
+        seedDocument(pageCount = 1)
+        engine.throwForAll = true
+
+        val result = runCatching { useCase(DOC_ID) }
+
+        val error = result.exceptionOrNull() as OcrFailedException
+        // Engine hỏng là lỗi hệ thống, thử lại có thể thành công. Gộp chung với "ảnh mờ" sẽ
+        // khiến người dùng đi chụp lại vô ích trong khi vấn đề nằm ở máy.
+        assertEquals(
+            vn.scanviet.app.domain.OcrFailureReason.ENGINE_UNAVAILABLE,
+            error.reason,
+        )
+    }
+
+    @Test
+    fun `engine tra ve null cho moi trang thi ly do la ENGINE_UNAVAILABLE`() = runTest {
+        seedDocument(pageCount = 2)
+        engine.failAll = true
+
+        val result = runCatching { useCase(DOC_ID) }
+
+        val error = result.exceptionOrNull() as OcrFailedException
+        // `null` nghĩa là "không đọc được ảnh" hoặc "engine chưa sẵn sàng" — cả hai đều là
+        // lỗi hệ thống, không phải kết luận về nội dung ảnh.
+        assertEquals(
+            vn.scanviet.app.domain.OcrFailureReason.ENGINE_UNAVAILABLE,
+            error.reason,
+        )
+    }
+
+    @Test
+    fun `mat het file anh thi ly do la PAGE_UNREADABLE`() = runTest {
+        seedDocument(pageCount = 2)
+        storage.resolve(path(1)).delete()
+        storage.resolve(path(2)).delete()
+
+        val result = runCatching { useCase(DOC_ID) }
+
+        val error = result.exceptionOrNull() as OcrFailedException
+        // Không có ảnh nào để đọc: vấn đề lưu trữ, khác hẳn "ảnh không có chữ".
+        assertEquals(
+            vn.scanviet.app.domain.OcrFailureReason.PAGE_UNREADABLE,
+            error.reason,
+        )
+    }
+
+    @Test
+    fun `ly do mac dinh van la NO_TEXT_FOUND khi khong ro nguyen nhan`() = runTest {
+        seedDocument(pageCount = 1)
+        // Engine trả kết quả rỗng: rõ ràng nhất là "không tìm thấy chữ".
+        engine.returnEmptyLines = true
+
+        val error = runCatching { useCase(DOC_ID) }.exceptionOrNull() as OcrFailedException
+
+        assertEquals(vn.scanviet.app.domain.OcrFailureReason.NO_TEXT_FOUND, error.reason)
+    }
+
     /** Tạo tài liệu thật trong database giả, kèm file ảnh thật trên đĩa. */
     private suspend fun seedDocument(pageCount: Int) {
         val pages = (1..pageCount).map { index ->
