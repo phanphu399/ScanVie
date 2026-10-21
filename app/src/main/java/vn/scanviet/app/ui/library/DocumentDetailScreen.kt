@@ -72,7 +72,6 @@ import vn.scanviet.app.core.file.PdfFileNames
 import vn.scanviet.app.core.format.Formatters
 import vn.scanviet.app.domain.image.PageImageLoader
 import vn.scanviet.app.domain.model.DocumentPage
-import vn.scanviet.app.domain.model.OcrStatus
 import vn.scanviet.app.domain.model.OcrText
 import vn.scanviet.app.ui.common.asString
 import vn.scanviet.app.ui.common.messageRes
@@ -82,13 +81,18 @@ import vn.scanviet.app.ui.components.EmptyState
 import vn.scanviet.app.ui.components.EmptyStateTone
 import vn.scanviet.app.ui.components.SectionHeader
 
+
 /**
  * Màn hình chi tiết tài liệu.
  *
  * Ba phần, theo thứ tự người dùng cần:
- * 1. Thông tin tài liệu (số trang, ngày, dung lượng, cảnh báo file thiếu).
- * 2. Nhận dạng chữ tiếng Việt — chạy trên máy, và kết quả được nhúng vào PDF để copy được.
- * 3. Xuất PDF và chia sẻ.
+ * 1. Một thẻ tóm tắt: số trang, ba nút chính (Xem, Lưu PDF, Chia sẻ) và trạng thái nhận dạng.
+ * 2. Danh sách trang có ảnh thu nhỏ.
+ * 3. Thông tin chi tiết (ngày, dung lượng, cảnh báo file thiếu).
+ *
+ * **Nhận dạng chữ chạy NGẦM, không có nút riêng.** Người dùng không phải biết "OCR" là gì để
+ * có một PDF tìm kiếm được. Kết quả nhận dạng vẫn hiển thị (để đọc và copy), nhưng việc chạy
+ * nó do ứng dụng tự quyết định — xem [DocumentDetailViewModel.autoRecognize].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,6 +113,12 @@ fun DocumentDetailScreen(
     var renameDialogVisible by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+
+    // Nhận dạng chữ tự chạy khi mở tài liệu còn thiếu chữ. Đặt ở đây (chứ không trong ViewModel
+    // init) để mỗi lần mở lại tài liệu — kể cả khi lần trước thất bại — đều được thử lại.
+    LaunchedEffect(viewModel.documentId) {
+        viewModel.autoRecognize()
+    }
 
     // Người dùng chọn nơi lưu PDF. Mở ở đúng thư mục Tải về để đỡ phải đi tìm.
     val saveLauncher = rememberLauncherForActivityResult(
@@ -223,6 +233,54 @@ fun DocumentDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     item {
+                        // Gộp phần "làm được gì" lên đầu: người dùng mở tài liệu là để XEM hoặc
+                        // LẤY PDF, không phải để đọc metadata. Metadata bị đẩy xuống cuối.
+                        SummaryCard(
+                            state = state,
+                            isRecognizing = isRecognizing,
+                            isExporting = isExporting,
+                            onOpenPages = { onOpenPage(1) },
+                            onSaveCopy = { saveLauncher.launch(defaultPdfName) },
+                            onShare = viewModel::onSharePdf,
+                        )
+                    }
+
+                    item {
+                        SectionHeader(
+                            text = stringResource(R.string.detail_section_pages),
+                            leadingIcon = Icons.AutoMirrored.Filled.List,
+                        )
+                        Text(
+                            text = stringResource(R.string.detail_pages_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+                        )
+                        PagesCard(
+                            state = state,
+                            onOpenPage = onOpenPage,
+                            imageLoader = viewModel.thumbnailLoader,
+                        )
+                    }
+
+                    if (isRecognizing) {
+                        item { RecognizingCard(pageCount = state.pages.size) }
+                    }
+
+                    if (state.hasOcrText) {
+                        item {
+                            SectionHeader(
+                                text = stringResource(R.string.detail_section_text),
+                                leadingIcon = Icons.Default.Create,
+                            )
+                            OcrTextCard(
+                                ocrText = state.ocrText,
+                                onCopy = viewModel::onCopyText,
+                            )
+                        }
+                    }
+
+                    item {
                         SectionHeader(
                             text = stringResource(R.string.detail_section_info),
                             leadingIcon = Icons.Default.Info,
@@ -261,53 +319,6 @@ fun DocumentDetailScreen(
                                 modifier = Modifier.padding(vertical = 8.dp),
                             )
                         }
-                    }
-
-                    item {
-                        SectionHeader(
-                            text = stringResource(R.string.detail_section_pages),
-                            leadingIcon = Icons.AutoMirrored.Filled.List,
-                        )
-                        Text(
-                            text = stringResource(R.string.detail_pages_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
-                        )
-                        PagesCard(
-                            state = state,
-                            onOpenPage = onOpenPage,
-                            imageLoader = viewModel.thumbnailLoader,
-                        )
-                    }
-
-                    item {
-                        SectionHeader(
-                            text = stringResource(R.string.detail_ocr_label),
-                            leadingIcon = Icons.Default.Create,
-                        )
-                        OcrSection(
-                            state = state,
-                            isRecognizing = isRecognizing,
-                            isExporting = isExporting,
-                            onRecognize = viewModel::onRecognizeText,
-                            onCopy = viewModel::onCopyText,
-                        )
-                    }
-
-                    item {
-                        SectionHeader(
-                            text = stringResource(R.string.detail_export_label),
-                            leadingIcon = Icons.Default.Share,
-                        )
-                        ExportSection(
-                            isExporting = isExporting,
-                            isRecognizing = isRecognizing,
-                            hasOcrText = state.hasOcrText,
-                            ocrStatus = state.document.ocrStatus,
-                            onSaveCopy = { saveLauncher.launch(defaultPdfName) },
-                            onShare = viewModel::onSharePdf,
-                        )
                     }
                 }
             }
@@ -450,163 +461,61 @@ private fun PageRow(
 }
 
 /**
- * Phần nhận dạng chữ: nút chạy nhận dạng, và chữ đã nhận dạng để đọc/copy.
+ * Thẻ tóm tắt: nói ngay tài liệu này có gì, và ba việc chính làm được với nó.
  *
- * Vì sao chữ được hiển thị theo từng trang chứ không gộp một khối: người dùng đối chiếu chữ
- * với ảnh trang, nên biết "đoạn này thuộc trang nào" là thông tin cần thiết.
+ * **Vì sao gộp ba nút vào một thẻ thay vì ba mục riêng:** trước đây "Nhận dạng chữ" và "Xuất
+ * PDF" là hai mục ngang hàng, khiến người dùng phải hiểu hai khái niệm kỹ thuật trước khi làm
+ * được việc đơn giản nhất là lấy file PDF. Ở đây chỉ còn MỘT hàng nút, và trạng thái nhận dạng
+ * là một dòng chú thích nhỏ — thông tin vẫn đủ, nhưng không còn chắn đường.
+ *
+ * **Vì sao nút "Lưu PDF" luôn bấm được:** nhận dạng chữ chạy ngầm và tự động. Nếu để nút bị
+ * khoá trong lúc đó, người dùng tưởng ứng dụng treo. Khoá chỉ khi đang xuất, để tránh bấm hai
+ * lần ghi hai file.
  */
 @Composable
-private fun OcrSection(
+private fun SummaryCard(
     state: DocumentDetailUiState.Loaded,
     isRecognizing: Boolean,
     isExporting: Boolean,
-    onRecognize: () -> Unit,
-    onCopy: () -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = stringResource(R.string.detail_ocr_note),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(state.document.ocrStatus.ocrStatusMessageRes()),
-                style = MaterialTheme.typography.bodySmall,
-                color = if (state.document.ocrStatus == OcrStatus.FAILED) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = onRecognize,
-                    // Khoá cả khi đang xuất PDF: xuất PDF tự chạy nhận dạng, hai việc cùng
-                    // chạy sẽ tranh nhau ghi kết quả vào database.
-                    enabled = !isRecognizing && !isExporting,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(
-                        text = stringResource(
-                            if (state.hasOcrText) {
-                                R.string.detail_ocr_rerun
-                            } else {
-                                R.string.detail_ocr_run
-                            },
-                        ),
-                    )
-                }
-                if (state.hasOcrText) {
-                    OutlinedButton(
-                        onClick = onCopy,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(
-                            // `material-icons-core` 1.7.6 chỉ có 50 biểu tượng và KHÔNG có
-                            // `ContentCopy` (đã liệt kê class trong AAR để kiểm chứng). Dùng
-                            // `Create` (bút chì) từng gây nhầm vì màn hình này cũng dùng `Edit`
-                            // (cũng là bút chì) cho "Đổi tên" — hai nút khác nghĩa, một hình.
-                            // Chọn `Check` cho copy: đọc là "lấy xong", và không đụng biểu
-                            // tượng nào khác trên màn hình.
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = stringResource(R.string.detail_ocr_copy))
-                    }
-                }
-            }
-
-            if (isRecognizing) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.detail_ocr_running_pages, state.pages.size),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            }
-
-            if (state.hasOcrText) {
-                Spacer(modifier = Modifier.height(8.dp))
-                OcrTextPreview(ocrText = state.ocrText)
-            }
-        }
-    }
-}
-
-/**
- * Xem trước chữ nhận dạng, tối đa vài trang.
- *
- * Vì sao giới hạn số trang hiển thị: một tài liệu 20 trang có thể có hàng nghìn dòng chữ.
- * Dựng hết trong một `LazyColumn` lồng nhau vừa chậm vừa khó đọc. Người dùng cần copy thì
- * đã có nút copy toàn bộ; ở đây chỉ cần thấy kết quả nhận dạng có hợp lý không.
- */
-@Composable
-private fun OcrTextPreview(ocrText: List<OcrText>) {
-    HorizontalDivider()
-    ocrText.sortedBy { it.pageIndex }.take(MAX_PREVIEW_PAGES).forEach { page ->
-        if (page.lines.isEmpty()) return@forEach
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.detail_ocr_page_header, page.pageIndex),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            text = page.fullText,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = MAX_PREVIEW_LINES,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun ExportSection(
-    isExporting: Boolean,
-    isRecognizing: Boolean,
-    hasOcrText: Boolean,
-    ocrStatus: OcrStatus,
+    onOpenPages: () -> Unit,
     onSaveCopy: () -> Unit,
     onShare: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = stringResource(R.string.detail_export_note),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            // Nhắc rõ rằng chưa nhận dạng thì PDF sẽ không copy được chữ. Không nhắc thì
-            // người dùng tưởng lỗi do ứng dụng, trong khi thực ra là do họ bỏ qua một bước.
-            if (!hasOcrText && ocrStatus != OcrStatus.RUNNING) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.detail_ocr_warning_pdf),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = state.document.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = stringResource(
+                            R.string.detail_summary_line,
+                            state.document.pageCount,
+                            Formatters.fileSize(state.document.sizeBytes),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                OcrStatusChip(status = state.document.ocrStatus)
             }
+
             Spacer(modifier = Modifier.height(12.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                // Khoá nút trong lúc tạo PDF: bấm hai lần sẽ chạy hai lần xuất, vừa chậm
-                // vừa có thể ghi đè lẫn nhau. Khoá cả khi đang nhận dạng vì xuất PDF tự
-                // chạy nhận dạng trước.
-                OutlinedButton(
+                // Nút "Lưu PDF" là hành động chính của màn hình: nó chiếm cả hàng trên, hai nút
+                // phụ nằm dưới. Đây là thứ tự ưu tiên thật của người dùng.
+                Button(
                     onClick = onSaveCopy,
-                    enabled = !isExporting && !isRecognizing,
+                    enabled = !isExporting,
                     modifier = Modifier.weight(1f),
                 ) {
                     Icon(
@@ -616,23 +525,41 @@ private fun ExportSection(
                         // dependency material-icons-extended (~10 MB).
                         imageVector = Icons.Default.Check,
                         contentDescription = null,
+                        modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = stringResource(R.string.detail_export_save))
                 }
-                Button(
+                OutlinedButton(
                     onClick = onShare,
-                    enabled = !isExporting && !isRecognizing,
+                    enabled = !isExporting,
                     modifier = Modifier.weight(1f),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
                         contentDescription = null,
+                        modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = stringResource(R.string.detail_export_share))
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = onOpenPages,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.List,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(R.string.detail_open_viewer))
+            }
+
             if (isExporting) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -643,6 +570,102 @@ private fun ExportSection(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
+            } else if (isRecognizing) {
+                // Nhận dạng chạy ngầm: chỉ một dòng nhỏ, không phải một khối chắn giữa màn hình.
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.detail_recognizing),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Trạng thái "đang nhận dạng chữ" khi chưa có kết quả nào để hiển thị. */
+@Composable
+private fun RecognizingCard(pageCount: Int) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.detail_recognizing),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = stringResource(R.string.detail_ocr_running_pages, pageCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Chữ đã nhận dạng để đọc và copy.
+ *
+ * Vì sao vẫn hiển thị dù nhận dạng là ngầm: người dùng cần KIỂM TRA chất lượng trước khi tin
+ * một tài liệu quan trọng. Copy từng phần cũng hữu ích hơn copy cả tài liệu.
+ *
+ * Vì sao giới hạn số trang hiển thị: một tài liệu 20 trang có thể có hàng nghìn dòng chữ.
+ * Dựng hết trong một `LazyColumn` lồng nhau vừa chậm vừa khó đọc. Người dùng cần trọn bộ thì
+ * đã có nút copy toàn bộ.
+ */
+@Composable
+private fun OcrTextCard(ocrText: List<OcrText>, onCopy: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = stringResource(R.string.detail_ocr_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(onClick = onCopy) {
+                Icon(
+                    // `material-icons-core` 1.7.6 chỉ có 50 biểu tượng và KHÔNG có
+                    // `ContentCopy` (đã liệt kê class trong AAR để kiểm chứng). Dùng `Create`
+                    // (bút chì) từng gây nhầm vì màn hình này cũng dùng `Edit` (cũng là bút chì)
+                    // cho "Đổi tên" — hai nút khác nghĩa, một hình. Chọn `Check` cho copy: đọc
+                    // là "lấy xong", và không đụng biểu tượng nào khác trên màn hình.
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(R.string.detail_ocr_copy))
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+            ocrText.sortedBy { it.pageIndex }.take(MAX_PREVIEW_PAGES).forEach { page ->
+                if (page.lines.isEmpty()) return@forEach
+                Text(
+                    text = stringResource(R.string.detail_ocr_page_header, page.pageIndex),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = page.fullText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = MAX_PREVIEW_LINES,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
             }
         }
     }
@@ -667,14 +690,6 @@ private fun Context.sharePdfFile(file: File) {
     startActivity(
         Intent.createChooser(intent, getString(R.string.detail_export_share_chooser)),
     )
-}
-
-/** Thông báo trạng thái nhận dạng hiển thị trong phần OCR. */
-private fun OcrStatus.ocrStatusMessageRes(): Int = when (this) {
-    OcrStatus.NONE -> R.string.detail_ocr_status_none
-    OcrStatus.RUNNING -> R.string.detail_ocr_running
-    OcrStatus.DONE -> R.string.detail_ocr_done_count
-    OcrStatus.FAILED -> R.string.detail_ocr_status_failed
 }
 
 private const val PDF_MIME_TYPE = "application/pdf"

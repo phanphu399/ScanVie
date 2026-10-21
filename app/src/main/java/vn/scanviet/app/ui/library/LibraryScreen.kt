@@ -143,6 +143,18 @@ fun LibraryScreen(
                     contentPadding = PaddingValues(bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    item(key = "library-list-header") {
+                        SectionHeader(
+                            text = stringResource(
+                                if (query.isBlank()) {
+                                    R.string.library_section_all
+                                } else {
+                                    R.string.library_section_results
+                                },
+                            ),
+                            leadingIcon = Icons.AutoMirrored.Filled.List,
+                        )
+                    }
                     items(items = state.items, key = { it.document.id }) { item ->
                         DocumentRow(
                             document = item.document,

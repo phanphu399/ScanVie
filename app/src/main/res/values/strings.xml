@@ -6,6 +6,8 @@
     <string name="library_title">Tài liệu của tôi</string>
     <string name="library_scan_action">Quét tài liệu</string>
     <string name="library_search_hint">Tìm theo tên tài liệu</string>
+    <string name="library_section_all">Tất cả tài liệu</string>
+    <string name="library_section_results">Kết quả tìm kiếm</string>
     <string name="library_loading">Đang tải tài liệu…</string>
     <string name="library_empty_title">Chưa có tài liệu nào</string>
     <string name="library_empty_message">Bấm “Quét tài liệu” để tạo tài liệu đầu tiên.\nTài liệu được xử lý và lưu ngay trên máy.</string>
@@ -54,7 +56,11 @@
     <string name="detail_missing_pages_warning">%1$d trang bị thiếu file ảnh trên máy.</string>
     <string name="detail_ocr_label">Nhận dạng chữ tiếng Việt</string>
     <string name="detail_ocr_placeholder">Sẽ có ở Giai đoạn 3. Chạy trên thiết bị, không gửi tài liệu lên máy chủ.</string>
-    <string name="detail_ocr_note">Chữ được nhận dạng ngay trên máy, không gửi tài liệu lên máy chủ. Khi lưu hoặc chia sẻ PDF, lớp chữ này được nhúng chìm để tìm và copy được.</string>
+    <string name="detail_ocr_note">Chữ được nhận dạng tự động ngay trên máy, không gửi tài liệu lên máy chủ. Khi lưu hoặc chia sẻ PDF, lớp chữ này được nhúng chìm để tìm và copy được.</string>
+    <string name="detail_section_text">Chữ trong tài liệu</string>
+    <string name="detail_summary_line">%1$d trang · %2$s</string>
+    <string name="detail_open_viewer">Xem toàn màn hình</string>
+    <string name="detail_recognizing">Đang nhận dạng chữ…</string>
     <string name="detail_ocr_run">Nhận dạng chữ</string>
     <string name="detail_ocr_rerun">Nhận dạng lại</string>
     <string name="detail_ocr_running">Đang nhận dạng chữ…</string>
@@ -78,6 +84,10 @@
     <string name="viewer_zoom_in">Phóng to</string>
     <string name="viewer_zoom_out">Thu nhỏ</string>
     <string name="viewer_reset_zoom">Về cỡ gốc</string>
+    <string name="viewer_prev_page">Trang trước</string>
+    <string name="viewer_next_page">Trang sau</string>
+    <string name="viewer_copy_text">Copy chữ trang này</string>
+    <string name="viewer_no_text">Trang này chưa có chữ nhận dạng.</string>
     <string name="detail_export_label">Xuất PDF và chia sẻ</string>
     <string name="detail_export_save">Lưu bản PDF</string>
     <string name="detail_export_share">Chia sẻ PDF</string>

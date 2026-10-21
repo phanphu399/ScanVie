@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -65,6 +66,47 @@ class DocumentViewerViewModel @Inject constructor(
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
                 initialValue = DocumentViewerUiState.Loading,
             )
+
+    /**
+     * Copy chữ nhận dạng của MỘT trang, để người dùng lấy nhanh vài dòng từ PDF mà không phải
+     * mở trình đọc PDF.
+     *
+     * Vì sao copy theo TRANG đang xem chứ không copy cả tài liệu: người dùng đang nhìn một trang
+     * cụ thể, và nhu cầu thường là lấy đoạn chữ của chính trang đó. Copy cả tài liệu vẫn có ở màn
+     * hình chi tiết cho ai cần.
+     *
+     * @return chữ của trang, hoặc `null` nếu trang chưa có kết quả nhận dạng.
+     */
+    fun pageText(pageIndex: Int): String? {
+        val text = ocrPages.value
+            .firstOrNull { it.pageIndex == pageIndex }
+            ?.fullText
+            ?.trim()
+        return text?.takeIf { it.isNotEmpty() }
+    }
+
+    /** Chữ đã nhận dạng của mọi trang, dùng để tra theo trang đang xem. */
+    private val ocrPages = repository.observeOcrText(documentId)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
+            initialValue = emptyList(),
+        )
+
+    /** Yêu cầu UI copy một đoạn chữ; UI copy xong phải gọi [onCopyHandled]. */
+    private val _copyRequest = MutableStateFlow<String?>(null)
+    val copyRequest: StateFlow<String?> = _copyRequest
+
+    /** Người dùng bấm "Copy chữ trang này"; trả `false` nếu trang chưa có chữ để copy. */
+    fun onCopyPageText(pageIndex: Int): Boolean {
+        val text = pageText(pageIndex) ?: return false
+        _copyRequest.value = text
+        return true
+    }
+
+    fun onCopyHandled() {
+        _copyRequest.value = null
+    }
 
     private companion object {
         const val STOP_TIMEOUT_MILLIS = 5_000L

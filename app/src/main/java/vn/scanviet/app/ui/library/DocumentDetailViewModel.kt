@@ -105,33 +105,36 @@ class DocumentDetailViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Nhận dạng chữ tự động, chạy khi màn hình chi tiết được mở.
+     *
+     * **Vì sao bỏ nút "Nhận dạng chữ":** người dùng cuối không biết "OCR" là gì, và yêu cầu của
+     * họ là "PDF copy được chữ" — không phải "chạy nhận dạng". Bắt họ bấm một nút kỹ thuật để
+     * có được kết quả đúng là thiết kế tồi. Việc nhận dạng giờ là chi tiết cài đặt.
+     *
+     * **Vì sao chỉ chạy khi tài liệu còn THIẾU chữ:** nhận dạng lại một tài liệu đã xong là
+     * lãng phí hàng chục giây. [RecognizeDocumentTextUseCase] cũng đã bỏ qua trang có chữ, nên
+     * đây là lớp chặn thứ hai ở phía UI để tránh cả việc hiện vòng xoay vô ích.
+     *
+     * **Vì sao lỗi không hiện thông báo:** nhận dạng là việc ngầm. Báo lỗi cho một việc người
+     * dùng không yêu cầu làm họ tưởng ứng dụng hỏng. Nếu họ cần lớp chữ chuẩn, đường xuất PDF
+     * ([ensureTextLayer]) vẫn chạy lại và báo lỗi đúng lúc — khi họ thực sự cần kết quả.
+     */
+    fun autoRecognize() {
+        val loaded = uiState.value as? DocumentDetailUiState.Loaded ?: return
+        if (loaded.hasOcrText) return
+        if (!beginRecognize()) return
+        viewModelScope.launch {
+            runCatching { recognizeText(documentId) }
+            _isRecognizing.value = false
+        }
+    }
+
     fun onMoveToTrash() {
         viewModelScope.launch {
             runCatching { repository.moveToTrash(documentId) }
                 .onSuccess { _closed.value = true }
                 .onFailure { failure -> _message.value = failure.toUiMessage() }
-        }
-    }
-
-    /**
-     * Người dùng bấm "Nhận dạng chữ".
-     *
-     * Vì sao báo số trang ĐÃ nhận dạng thêm thay vì tổng số trang: các trang đã có chữ được
-     * bỏ qua, nên "Đã nhận dạng 0 trang" là thông tin đúng và hữu ích ("mọi thứ đã xong rồi"),
-     * trong khi luôn hiện tổng số trang sẽ khiến người dùng tưởng vừa chạy lại tất cả.
-     */
-    fun onRecognizeText() {
-        if (!beginRecognize()) return
-        viewModelScope.launch {
-            runCatching { recognizeText(documentId) }
-                .onSuccess { newlyRecognized ->
-                    _message.value = UiMessage(
-                        resId = R.string.detail_ocr_done_count,
-                        formatArgs = listOf(newlyRecognized),
-                    )
-                }
-                .onFailure { failure -> _message.value = failure.toUiMessage() }
-            _isRecognizing.value = false
         }
     }
 
@@ -192,8 +195,10 @@ class DocumentDetailViewModel @Inject constructor(
     private suspend fun ensureTextLayer() {
         val loaded = uiState.value as? DocumentDetailUiState.Loaded ?: return
         if (loaded.hasOcrText) return
-        _isRecognizing.value = true
+        if (!beginRecognize()) return
         try {
+            // Lỗi nhận dạng KHÔNG được làm hỏng việc xuất: người dùng có quyền chỉ muốn lưu ảnh
+            // scan. `runCatching` nuốt lỗi OCR và PDF vẫn ra đời, chỉ thiếu lớp chữ.
             runCatching { recognizeText(documentId) }
         } finally {
             _isRecognizing.value = false

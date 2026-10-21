@@ -18,6 +18,7 @@ import vn.scanviet.app.core.DispatcherProvider
 import vn.scanviet.app.domain.export.PdfExporter
 import vn.scanviet.app.domain.export.PdfPageSource
 import vn.scanviet.app.domain.export.PdfTextLine
+import vn.scanviet.app.domain.export.invisibleTextPlacement
 
 /**
  * Sinh PDF bằng `android.graphics.pdf.PdfDocument` có sẵn trong Android.
@@ -137,20 +138,33 @@ class AndroidPdfExporter @Inject constructor(
     /**
      * Vẽ lớp chữ CHÌM lên ảnh để PDF tìm kiếm và copy được.
      *
-     * Ba điều chỉnh quan trọng, mỗi cái để tránh một lỗi có thật:
+     * Mục tiêu của phép hiệu chỉnh ở đây: khi người dùng bôi đen vùng chữ trong trình đọc PDF,
+     * ô chọn phải trùng khít với hàng chữ NHÌN THẤY trên ảnh. Lệch lên/xuống vài phần trăm
+     * chiều cao trang là đủ để ô chọn nhảy sang dòng khác — hỏng đúng thứ tính năng này sinh ra
+     * để làm. Vì vậy toàn bộ hình học được suy từ chính số đo font (`FontMetrics`) thay vì các
+     * tỉ lệ đoán trước.
+     *
+     * Bốn điều chỉnh, mỗi cái để tránh một lỗi có thật:
      *
      * 1. **Alpha = 1 chứ không phải 0.** `PdfDocument` BỎ QUA hoàn toàn lệnh vẽ có alpha 0
      *    khi ghi PDF — lớp chữ sẽ biến mất và tính năng copy hỏng trong im lặng. Alpha 1
      *    là mức trong suốt tối thiểu mà lệnh vẽ vẫn được ghi lại.
      *
-     * 2. **Cỡ chữ suy ra từ chiều cao hình bao, không cố định.** Chữ phải nằm gọn trong
-     *    đúng ô của nó, nếu không khi bôi đen sẽ chọn nhầm sang dòng khác. Chiều cao hình
-     *    bao chia cho ~1.3 (khoảng cách dòng điển hình của font) là ước lượng cỡ chữ hợp lý.
+     * 2. **Cỡ chữ suy từ số đo font, không từ một tỉ lệ cố định.** Với cỡ chữ `s`, khoảng cách
+     *    từ đường chân chữ lên đỉnh chữ có dấu (`-ascent`) và khoảng cách từ đường chân chữ
+     *    xuống đáy chữ có chân (`descent`) là số đo thật của font. Chiều cao hình bao nhận dạng
+     *    được chính là `(-ascent + descent)`, nên `s = boxHeight / (ascentRatio + descentRatio)`
+     *    là cỡ chữ ĐÚNG cho ô đó — không cần hệ số 1.3 đoán trước.
      *
-     * 3. **`textScaleX` kéo chữ vừa khít chiều rộng hình bao.** Font hệ thống không cùng
-     *    số đo với font của tài liệu gốc; không bù lại thì vị trí chọn chữ trôi dần về
-     *    cuối dòng. Đo chiều rộng thật của chuỗi rồi chia cho chiều rộng cần có là cách
-     *    hiệu chỉnh đơn giản và chính xác.
+     * 3. **Đường chân chữ đặt chính giữa khoảng chênh của hai số đo.** Sau khi chọn `s` theo (2),
+     *    khối chữ vẽ ra vẫn có thể thấp hơn hình bao (font hệ thống và font tài liệu khác nhau).
+     *    Dời baseline xuống đúng nửa phần chênh khiến khối chữ nằm CÂN trong ô thay vì dồn lên
+     *    trên — đây là nguyên nhân chính làm chữ hiện ra lệch so với hàng chữ trong ảnh.
+     *
+     * 4. **`textScaleX` kéo chữ vừa khít chiều rộng hình bao.** Font hệ thống không cùng số đo
+     *    với font của tài liệu gốc; không bù lại thì vị trí chọn chữ trôi dần về cuối dòng.
+     *    Đo chiều rộng thật của chuỗi rồi chia cho chiều rộng cần có là cách hiệu chỉnh chính
+     *    xác. Chiều rộng đo ở đây lấy TRƯỚC khi kéo giãn, nên hai phép hiệu chỉnh độc lập nhau.
      */
     private fun drawInvisibleTextLayer(canvas: Canvas, lines: List<PdfTextLine>, target: RectF) {
         if (lines.isEmpty()) return
@@ -158,28 +172,48 @@ class AndroidPdfExporter @Inject constructor(
         val textHeight = target.height()
         if (textWidth <= 0f || textHeight <= 0f) return
 
-        lines.forEach { line ->
-            val boxWidth = (line.right - line.left) * textWidth
-            val boxHeight = (line.bottom - line.top) * textHeight
-            if (line.text.isBlank() || boxWidth <= 0f || boxHeight <= 0f) return@forEach
+        // Một đối tượng Paint dùng lại cho mọi dòng: tạo mới mỗi dòng là cấp phát vô ích.
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            // Xem chú thích (1) ở trên: 0 sẽ khiến PdfDocument bỏ luôn lệnh vẽ.
+            alpha = INVISIBLE_TEXT_ALPHA
+            typeface = Typeface.DEFAULT
+            // Số đo font KHÔNG phụ thuộc cỡ chữ theo tỉ lệ tuyến tính, nên chỉ cần đo một lần
+            // ở cỡ chữ 1 rồi dùng lại cho mọi dòng — thay vì đo lại từng dòng.
+            textSize = METRICS_PROBE_SIZE_PT
+        }
+        val probe = paint.fontMetrics
 
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.BLACK
-                // Xem chú thích (1) ở trên: 0 sẽ khiến PdfDocument bỏ luôn lệnh vẽ.
-                alpha = INVISIBLE_TEXT_ALPHA
-                textSize = (boxHeight / LINE_HEIGHT_FACTOR).coerceAtLeast(MIN_TEXT_SIZE_PT)
-                typeface = Typeface.DEFAULT
-            }
+        lines.forEach { line ->
+            if (line.text.isBlank()) return@forEach
+            val placement = invisibleTextPlacement(
+                left = line.left,
+                top = line.top,
+                right = line.right,
+                bottom = line.bottom,
+                targetLeft = target.left,
+                targetTop = target.top,
+                targetWidth = textWidth,
+                targetHeight = textHeight,
+                ascentRatio = probe.ascent,
+                descentRatio = probe.descent,
+                minTextSize = MIN_TEXT_SIZE_PT,
+                maxTextSize = MAX_TEXT_SIZE_PT,
+            ) ?: return@forEach
+
+            paint.textSize = placement.textSize
             val measured = paint.measureText(line.text)
             if (measured <= 0f) return@forEach
-            // Xem chú thích (3): kéo giãn chữ cho khớp bề rộng nhận dạng được.
+            // Xem chú thích (4): kéo giãn chữ cho khớp bề rộng nhận dạng được.
+            val boxWidth = (line.right - line.left) * textWidth
             paint.textScaleX = (boxWidth / measured).coerceIn(MIN_TEXT_SCALE_X, MAX_TEXT_SCALE_X)
 
-            val x = target.left + line.left * textWidth
-            // Baseline nằm dưới mép trên hình bao một khoảng bằng phần "ascender" của font.
-            val y = target.top + line.top * textHeight + boxHeight * BASELINE_RATIO
-            canvas.drawText(line.text, x, y, paint)
+            canvas.drawText(line.text, placement.x, placement.baselineY, paint)
         }
+
+        // Trả `textScaleX` về mặc định: Paint là đối tượng dùng chung, để lại giá trị kéo giãn
+        // của dòng cuối sẽ ảnh hưởng nếu sau này có ai tái sử dụng nó.
+        paint.textScaleX = 1f
     }
 
     /** `pageNumber` nội bộ do PdfDocument dùng để đánh số; ta tự đếm cho chắc chắn liên tục. */
@@ -233,13 +267,23 @@ class AndroidPdfExporter @Inject constructor(
          */
         const val INVISIBLE_TEXT_ALPHA = 1
 
-        /** Tỉ lệ chiều cao dòng / cỡ chữ của font mặc định. Dùng để suy cỡ chữ từ hình bao. */
-        const val LINE_HEIGHT_FACTOR = 1.3f
-
-        /** Vị trí đường chân chữ trong hình bao (theo tỉ lệ chiều cao). */
-        const val BASELINE_RATIO = 0.8f
-
+        /**
+         * Cỡ chữ tối thiểu. Hình bao cao dưới 1pt gần như chắc chắn là dòng rác; vẫn vẽ ở 1pt
+         * để dòng đó còn copy được thay vì bị bỏ.
+         */
         const val MIN_TEXT_SIZE_PT = 1f
+
+        /**
+         * Chặn trên cỡ chữ. Hình bao bị nhận dạng sai thành một khối lớn sẽ đòi cỡ chữ khổng
+         * lồ, kéo theo lệnh vẽ chữ tràn ra ngoài trang.
+         */
+        const val MAX_TEXT_SIZE_PT = 120f
+
+        /**
+         * Cỡ chữ dùng để ĐỌC số đo font. `FontMetrics` tỉ lệ tuyến tính theo cỡ chữ nên giá trị
+         * này chỉ cần khác 0; đọc ở 1pt rồi suy ra là đủ.
+         */
+        const val METRICS_PROBE_SIZE_PT = 1f
 
         /** Chặn kéo giãn vô lý khi hình bao bị nhận dạng sai (quá hẹp hoặc quá rộng). */
         const val MIN_TEXT_SCALE_X = 0.05f

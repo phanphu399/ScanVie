@@ -176,7 +176,7 @@ private fun ThumbnailBox(thumbnail: ImageBitmap?) {
  * cho người dùng, còn chữ giữ lại để không phụ thuộc hoàn toàn vào màu (người mù màu).
  */
 @Composable
-private fun OcrStatusChip(status: OcrStatus) {
+internal fun OcrStatusChip(status: OcrStatus, modifier: Modifier = Modifier) {
     val (background, foreground) = when (status) {
         OcrStatus.DONE -> MaterialTheme.colorScheme.primaryContainer to
             MaterialTheme.colorScheme.onPrimaryContainer
@@ -197,7 +197,7 @@ private fun OcrStatusChip(status: OcrStatus) {
         maxLines = 1,
         softWrap = false,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(4.dp))
             .background(background)
             .padding(horizontal = 6.dp, vertical = 2.dp),
